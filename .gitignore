@@ -25,5 +25,3 @@ web-ext.config.ts
 *.sln
 *.sw?
 
-# Windsurf rules
-.windsurfrules

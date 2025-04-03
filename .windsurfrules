@@ -1,0 +1,70 @@
+<project_context>
+  项目类型：使用 WXT 框架开发的 Chrome V3 插件。
+  目标平台：Chrome (Manifest V3)
+</project_context>
+
+<technology_stack>
+  - 主要框架：WXT (wxt.dev)
+  - UI 库：React (^19.0.0)
+  - CSS 方案：Tailwind CSS (^4.0.0)
+  - UI 组件库：shadcn/ui
+</technology_stack>
+
+<workflow_rules>
+  <error_handling>
+    - 规则：处理编辑器 import 错误
+    - 描述：当遇到 `import` 无法解析或模块找不到的编辑器错误时。
+    - 禁止：**禁止**自行修改导入代码试图修复。
+    - 要求：**必须**立即报告错误信息和文件，并提示“可能是依赖未安装”。
+  </error_handling>
+  <dependency_management>
+    - 规则：添加 shadcn/ui 组件
+    - 描述：当需要使用新的、项目中尚未存在的 shadcn/ui 组件时。
+    - 禁止：**禁止**手动创建组件文件或复制代码。
+    - 要求：**必须**立即报告所需组件名称，并提示“需使用 `npx shadcn-ui@latest add [component-name]` 安装”。
+  </dependency_management>
+</workflow_rules>
+
+<coding_style>
+  <naming_conventions>
+    - React 组件 (Component Name): 大驼峰式 (PascalCase)。示例: `MyComponent`, `UserProfileCard`。
+    - 组件文件名 (Component Filename): 短横线分隔 (kebab-case)。示例: `my-component.tsx`, `user-profile-card.tsx`。
+    - 变量与函数 (Variables & Functions): 小驼峰式 (camelCase)。示例: `userName`, `fetchData`, `calculateTotal`。
+  </naming_conventions>
+  <!-- 可以根据需要添加其他编码风格规则，例如代码格式化、注释要求等 -->
+  <!-- <code_formatting>
+    - 使用 Prettier 进行代码格式化 (根据项目配置)。
+  </code_formatting> -->
+</coding_style>
+
+<file_organization>
+  <directory_guidelines>
+    - **组件 (Components):**
+      - 存放位置：`components/`
+      - 说明：放置可重用的 React UI 组件。遵循 React 组件命名和文件名规范。会被 WXT 自动导入。
+    - **钩子 (Hooks):**
+      - 存放位置：`hooks/`
+      - 说明：放置自定义 React Hooks。遵循 Hooks 命名规范 (以 `use` 开头)。会被 WXT 自动导入。
+    - **工具函数 (Utilities):**
+      - 存放位置：`utils/`
+      - 说明：放置通用的、与具体业务逻辑或 UI 无关的辅助函数。会被 WXT 自动导入。
+    - **入口点 (Entrypoints):**
+      - 存放位置：`entrypoints/`
+      - 说明：放置扩展的入口文件，如 background scripts, content scripts, popup pages, options pages 等。通常在此目录下组织子目录 (e.g., `entrypoints/popup/`, `entrypoints/background/`)。
+    - **静态资源 (Assets):**
+      - 存放位置：`assets/`
+      - 说明：放置需要 WXT 处理的 CSS 文件、图片、字体等资源。
+    - **公共文件 (Public):**
+      - 存放位置：`public/`
+      - 说明：放置不需要 WXT 处理、需要直接复制到最终构建输出目录的文件 (例如 `manifest.json` 中的图标文件、`_locales` 目录等)。
+    - **配置 (Configuration):**
+      - 主要配置：`wxt.config.ts` (WXT), `tsconfig.json` (TypeScript), `package.json` (项目依赖与脚本)。
+      - 环境配置：`.env`, `.env.publish`。
+      - 运行时配置：`app.config.ts`。
+      - 浏览器启动配置：`web-ext.config.ts`。
+  </directory_guidelines>
+  <restricted_directories>
+    - **禁止手动修改:** `.output/` 和 `.wxt/` 目录。
+    - **说明:** 这些目录由 WXT 自动生成或用于存放构建产物，不应直接编辑。
+  </restricted_directories>
+</file_organization>
