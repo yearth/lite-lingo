@@ -91,7 +91,7 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
   };
 
   // 处理朗读按钮点击
-  const handleSpeechClick = (event: React.MouseEvent) => {
+  const handleSpeechClick = async (event: React.MouseEvent) => {
     // 阻止事件冒泡和默认行为
     event.stopPropagation();
     event.preventDefault();
@@ -99,6 +99,45 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
     console.log("[Lite Lingo] 朗读按钮被点击");
     console.log("[Lite Lingo] 准备朗读:", text);
 
+    try {
+      // 调用TTS API
+      const response = await fetch("/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: text,
+          // 检测文本语言，简单实现：包含中文字符则使用中文，否则使用英文
+          language: /[\u4e00-\u9fa5]/.test(text) ? "zh" : "en",
+          // 不指定voice，让后端根据language选择默认音色
+        }),
+      });
+
+      if (!response.ok) {
+        // 处理错误响应
+        const errorText = await response.text();
+        throw new Error(`TTS API 错误: ${response.status} - ${errorText}`);
+      }
+
+      // 获取音频blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // 创建音频元素并播放
+      const audio = new Audio(audioUrl);
+      audio.addEventListener("ended", () => {
+        // 播放结束后释放资源
+        URL.revokeObjectURL(audioUrl);
+      });
+      await audio.play();
+      
+      console.log("[Lite Lingo] 朗读成功");
+    } catch (error) {
+      console.error("[Lite Lingo] 朗读失败:", error);
+    }
+
+    // 如果存在onSpeech回调，调用它
     if (onSpeech) {
       onSpeech(text);
     }
