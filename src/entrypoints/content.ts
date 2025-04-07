@@ -1,11 +1,23 @@
 import { SelectionBubbleManager } from "../components/selection-bubble.tsx";
 import { TranslationResultManager } from "../components/translation-result.tsx";
 import {
+  getTextContext,
   isEditableElement,
   isInShadowDOM,
-  getTextContext,
 } from "../utils/text-selection";
-import { streamTranslate } from "../utils/translation-service";
+// import { streamTranslate } from "../utils/translation-service"; // Removed: Use messaging instead
+import {
+  type BackgroundRequestMessage,
+  type BackgroundResponseMessage,
+  type ContentScriptStreamMessage,
+  isStreamChunkMessage,
+  isStreamCompleteMessage,
+  isStreamErrorMessage,
+  MSG_TYPE_MUTATION_REQUEST_TTS,
+  MSG_TYPE_MUTATION_TRANSLATE_STREAM,
+  type RequestTtsPayload,
+  type TranslateStreamPayload,
+} from "../types/messaging";
 
 export default defineContentScript({
   matches: [
@@ -29,12 +41,12 @@ export default defineContentScript({
     const translationResult = new TranslationResultManager();
     translationResult.init();
 
-    // 用于存储取消翻译的函数
-    let cancelTranslation: (() => void) | null = null;
+    // // 用于存储取消翻译的函数 - Removed: Cancellation logic might be handled differently via messaging
+    // let cancelTranslation: (() => void) | null = null;
 
     // 处理翻译按钮点击
     const handleTranslate = (text: string, context: string) => {
-      console.log("[Lite Lingo] 处理翻译请求", { text, context });
+      console.log("[Lite Lingo] 发送翻译请求消息", { text, context });
 
       // 获取气泡位置，用于定位翻译结果框
       const bubbleElement = document.getElementById("lite-lingo-bubble");
@@ -52,67 +64,127 @@ export default defineContentScript({
         text,
         resultPosition,
         true,
-        handleSpeech
+        handleSpeech // Pass the new handleSpeech
       );
 
-      // 取消之前的翻译请求（如果有）
-      if (cancelTranslation) {
-        cancelTranslation();
-        cancelTranslation = null;
-      }
+      // // 取消之前的翻译请求 - Removed: Handled differently now
+      // if (cancelTranslation) {
+      //   cancelTranslation();
+      //   cancelTranslation = null;
+      // }
 
-      // 开始流式翻译
-      let translatedText = "";
-
-      streamTranslate(
-        {
+      // 构建消息
+      const message: BackgroundRequestMessage<TranslateStreamPayload> = {
+        type: MSG_TYPE_MUTATION_TRANSLATE_STREAM,
+        payload: {
           text,
-          context,
-          targetLanguage: "zh-CN", // 默认翻译为中文
+          context: context || "", // Ensure context is always a string
+          targetLanguage: "zh-CN", // Or get from settings later
         },
-        {
-          onChunk: (chunk) => {
-            // 累积翻译结果
-            translatedText += chunk;
-            // 更新翻译结果框
-            translationResult.update(translatedText, false);
-          },
-          onComplete: () => {
-            console.log("[Lite Lingo] 翻译完成", { translatedText });
-            // 更新翻译结果（非加载状态）
-            translationResult.update(translatedText, false);
-            cancelTranslation = null;
-          },
-          onError: (error) => {
-            console.error("[Lite Lingo] 翻译错误:", error);
-            // 显示错误信息
-            translationResult.update(`翻译出错: ${error}`, false);
-            cancelTranslation = null;
-          },
+      };
+
+      // 发送消息到 Background Script
+      chrome.runtime.sendMessage(
+        message,
+        (response: BackgroundResponseMessage) => {
+          // 这个回调主要处理 *启动* 流式请求时的即时错误
+          // 流式数据块将通过下面的 onMessage 监听器接收
+          if (chrome.runtime.lastError) {
+            console.error(
+              "[Lite Lingo] 发送翻译请求失败:",
+              chrome.runtime.lastError.message
+            );
+            translationResult.update(
+              `启动翻译失败: ${chrome.runtime.lastError.message}`,
+              false
+            );
+            return;
+          }
+
+          if (!response?.success) {
+            console.error("[Lite Lingo] 启动翻译请求失败:", response?.error);
+            translationResult.update(
+              `启动翻译失败: ${response?.error || "未知错误"}`,
+              false
+            );
+          } else {
+            console.log("[Lite Lingo] 翻译流已成功启动");
+            // 初始加载状态已在 translationResult.show 中设置
+            // 等待 onMessage 接收数据块
+          }
         }
-      ).then((cancel) => {
-        cancelTranslation = cancel;
-      });
+      );
     };
 
-    // 处理朗读按钮点击
+    // 处理朗读按钮点击 (改为发送消息)
     const handleSpeech = (text: string) => {
-      console.log("[Lite Lingo] 处理朗读请求", { text });
+      console.log("[Lite Lingo] 发送朗读请求消息", { text });
 
-      // 使用浏览器内置的语音合成 API
-      if ("speechSynthesis" in window) {
-        // 取消之前的朗读
-        window.speechSynthesis.cancel();
+      const message: BackgroundRequestMessage<RequestTtsPayload> = {
+        type: MSG_TYPE_MUTATION_REQUEST_TTS,
+        payload: {
+          text,
+          language: "zh", // 假设当前只朗读中文翻译结果
+        },
+      };
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        // 设置语言（可根据翻译目标语言动态设置）
-        utterance.lang = "zh-CN";
-
-        window.speechSynthesis.speak(utterance);
-      } else {
-        console.error("[Lite Lingo] 浏览器不支持语音合成 API");
-      }
+      chrome.runtime.sendMessage(
+        message,
+        (response: BackgroundResponseMessage) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "[Lite Lingo] 发送朗读请求失败:",
+              chrome.runtime.lastError.message
+            );
+            // 可选：显示错误给用户，例如在结果框短暂提示
+            return;
+          }
+          if (!response?.success) {
+            console.error("[Lite Lingo] 朗读请求失败:", response?.error);
+            // 可选：显示错误给用户
+          } else {
+            console.log("[Lite Lingo] 朗读请求已发送");
+            // Background script 会处理实际的 TTS
+          }
+        }
+      );
     };
+
+    // --- 新增：监听来自 Background 的流式消息 ---
+    let currentTranslatedText = ""; // 用于累积流式结果
+    chrome.runtime.onMessage.addListener(
+      (message: ContentScriptStreamMessage, sender, sendResponse) => {
+        // 确保消息来自 background (虽然 tabs.sendMessage 已经指定了 tab)
+        // 实际应用中可能不需要这个检查，除非有其他扩展或脚本可能发送消息
+        // if (!sender.tab) { // 消息来自扩展内部，非 content script 发给 content script
+        // }
+
+        console.log("[Lite Lingo] 收到消息:", message);
+
+        if (isStreamChunkMessage(message)) {
+          currentTranslatedText += message.payload.chunk;
+          translationResult.update(currentTranslatedText, true); // 保持加载状态直到完成
+          console.log("[Lite Lingo] 更新翻译块:", message.payload.chunk);
+        } else if (isStreamErrorMessage(message)) {
+          console.error("[Lite Lingo] 收到流式错误:", message.payload.error);
+          translationResult.update(
+            `翻译出错: ${message.payload.error}`,
+            false // 结束加载状态
+          );
+          currentTranslatedText = ""; // 重置累积文本
+        } else if (isStreamCompleteMessage(message)) {
+          console.log("[Lite Lingo] 收到流式完成信号");
+          translationResult.update(currentTranslatedText, false); // 结束加载状态
+          currentTranslatedText = ""; // 重置累积文本
+        } else {
+          // 忽略其他类型的消息
+          console.log("[Lite Lingo] 收到未知或非流式消息，忽略");
+        }
+
+        // 对于 onMessage，如果不需要异步发送响应，可以不返回 true
+        // return true; // 只有在需要异步调用 sendResponse 时返回 true
+      }
+    );
 
     // 监听选中文本事件
     console.log("[Lite Lingo] 注册 mouseup 事件监听器");
@@ -215,6 +287,9 @@ export default defineContentScript({
         target: (event.target as Element)?.tagName,
       });
 
+      // 重置累积的翻译文本，因为用户点击了其他地方
+      currentTranslatedText = "";
+
       // 获取气泡容器元素
       const bubbleContainer = selectionBubble.getContainer();
       const resultContainer = translationResult.getContainer();
@@ -240,16 +315,16 @@ export default defineContentScript({
         selectionBubble.hide();
         translationResult.hide();
 
-        // 取消正在进行的翻译
-        if (cancelTranslation) {
-          cancelTranslation();
-          cancelTranslation = null;
-        }
+        // // 取消正在进行的翻译 - Removed: Handled differently now
+        // if (cancelTranslation) {
+        //   cancelTranslation();
+        //   cancelTranslation = null;
+        // }
+        // TODO: Consider sending a "cancel" message to background if needed
 
-        // 取消正在进行的朗读
-        if ("speechSynthesis" in window) {
-          window.speechSynthesis.cancel();
-        }
+        // 取消正在进行的朗读 - Background script should handle TTS cancellation if needed.
+        // window.speechSynthesis.cancel(); // Removed from content script
+        // } // Removed extra closing brace
       }
     });
 
@@ -259,16 +334,19 @@ export default defineContentScript({
       selectionBubble.cleanup();
       translationResult.cleanup();
 
-      // 取消正在进行的翻译
-      if (cancelTranslation) {
-        cancelTranslation();
-        cancelTranslation = null;
-      }
+      // // 取消正在进行的翻译 - Removed
+      // if (cancelTranslation) {
+      //   cancelTranslation();
+      //   cancelTranslation = null;
+      // }
 
-      // 取消正在进行的朗读
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      // // 取消正在进行的朗读 - Removed
+      // if ("speechSynthesis" in window) {
+      //   window.speechSynthesis.cancel();
+      // }
+
+      // 移除 onMessage 监听器 - WXT/Browser handles this on script unload.
+      // Manual removal requires storing the listener function reference.
     };
   },
 });
