@@ -412,6 +412,9 @@ export class SelectionBubbleManager {
     onTranslate?: (text: string, context: string) => void,
     onSpeech?: (text: string) => void
   ): void {
+    // 清除缓存的 DOM 引用，确保下次 getContainer 会重新查找
+    this.bubbleRef = null;
+
     if (!this.root) return;
 
     this.root.render(
