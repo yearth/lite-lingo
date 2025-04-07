@@ -13,10 +13,17 @@ import { Button } from "./ui/button";
 interface SelectionBubbleProps {
   text: string;
   context: string;
-  position: { x: number; y: number };
+  position: {
+    clientRect: {
+      top: number;
+      left: number;
+      width: number;
+      height: number;
+    };
+  };
   onTranslate?: (text: string, context: string) => void;
   onSpeech?: (text: string) => void;
-  onClose: () => void;
+  onClose?: () => void;
   isVisible: boolean;
 }
 
@@ -43,16 +50,32 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
 
     // 创建虚拟元素作为参考点
     const virtualElement = {
-      getBoundingClientRect() {
+      getBoundingClientRect: () => {
+        const rectData = position.clientRect;
+        if (!rectData) {
+          console.warn(
+            "[Lite Lingo] clientRect data is missing in position prop"
+          );
+          return {
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            x: 0,
+            y: 0,
+            right: 0,
+            bottom: 0,
+          };
+        }
         return {
-          width: 0,
-          height: 0,
-          x: position.x,
-          y: position.y,
-          top: position.y,
-          left: position.x,
-          right: position.x,
-          bottom: position.y,
+          width: rectData.width,
+          height: rectData.height,
+          x: rectData.left,
+          y: rectData.top,
+          top: rectData.top,
+          left: rectData.left,
+          right: rectData.left + rectData.width,
+          bottom: rectData.top + rectData.height,
         };
       },
     };
@@ -62,25 +85,32 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
       virtualElement as Element,
       bubbleRef.current,
       {
+        // 默认定位在元素上方
         placement: "top",
+        strategy: 'fixed',
         middleware: [
           offset(10),
-          autoPlacement({ allowedPlacements: ["top", "bottom"] }),
-          shift({ padding: 5 }),
+          autoPlacement({
+            allowedPlacements: ["top", "bottom"],
+            padding: 10,
+          }),
+          shift({ padding: 10 }),
         ],
       }
     );
 
-    console.log("[Lite Lingo] 气泡定位完成", { x, y });
+    console.log("[Lite Lingo] 气泡定位完成 (视口坐标)", { x, y });
+
+    // 直接返回 computePosition 给出的视口坐标
     return { x, y };
-  }, [isVisible, position.x, position.y, bubbleRef.current]);
+  }, [isVisible, position.clientRect, bubbleRef.current]);
 
   // 处理翻译按钮点击
   const handleTranslateClick = (event: React.MouseEvent) => {
     // 阻止事件冒泡和默认行为
     event.stopPropagation();
     event.preventDefault();
-    
+
     console.log("[Lite Lingo] 翻译按钮被点击");
     console.log("[Lite Lingo] 准备翻译:", text);
     console.log("[Lite Lingo] 文本上下文:", context);
@@ -95,13 +125,13 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
     // 阻止事件冒泡和默认行为
     event.stopPropagation();
     event.preventDefault();
-    
+
     console.log("[Lite Lingo] 朗读按钮被点击");
     console.log("[Lite Lingo] 准备朗读:", text);
 
     try {
       // 调用TTS API
-      const response = await fetch("/tts", {
+      const response = await fetch("http://127.0.0.1:3000/tts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -123,7 +153,7 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
       // 获取音频blob
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
-      
+
       // 创建音频元素并播放
       const audio = new Audio(audioUrl);
       audio.addEventListener("ended", () => {
@@ -131,16 +161,16 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
         URL.revokeObjectURL(audioUrl);
       });
       await audio.play();
-      
+
       console.log("[Lite Lingo] 朗读成功");
     } catch (error) {
       console.error("[Lite Lingo] 朗读失败:", error);
     }
 
     // 如果存在onSpeech回调，调用它
-    if (onSpeech) {
-      onSpeech(text);
-    }
+    // if (onSpeech) {
+    //   onSpeech(text);
+    // }
   };
 
   // 如果不可见，不渲染任何内容
@@ -236,7 +266,7 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
           // 阻止事件冒泡和默认行为
           event.stopPropagation();
           event.preventDefault();
-          
+
           // 处理关闭按钮点击
           console.log("[Lite Lingo] 关闭按钮被点击");
           if (onClose) {
@@ -308,7 +338,14 @@ export class SelectionBubbleManager {
     this.root = ReactDOM.createRoot(this.container);
 
     // 初始渲染一个隐藏的气泡
-    this.updateBubble("", "", { x: 0, y: 0 }, false, undefined, undefined);
+    this.updateBubble(
+      "",
+      "",
+      { clientRect: { top: 0, left: 0, width: 0, height: 0 } },
+      false,
+      undefined,
+      undefined
+    );
 
     this.isInitialized = true;
     console.log("[Lite Lingo] 气泡初始化完成");
@@ -320,11 +357,19 @@ export class SelectionBubbleManager {
    * @param context 文本上下文
    * @param position 鼠标位置
    * @param onTranslate 翻译回调
+   * @param onSpeech 朗读回调
    */
   public show(
     text: string,
     context: string,
-    position: { x: number; y: number },
+    position: {
+      clientRect: {
+        top: number;
+        left: number;
+        width: number;
+        height: number;
+      };
+    },
     onTranslate?: (text: string, context: string) => void,
     onSpeech?: (text: string) => void
   ): void {
@@ -338,7 +383,14 @@ export class SelectionBubbleManager {
   public hide(): void {
     console.log("[Lite Lingo] 隐藏气泡");
     if (this.root) {
-      this.updateBubble("", "", { x: 0, y: 0 }, false, undefined, undefined);
+      this.updateBubble(
+        "",
+        "",
+        { clientRect: { top: 0, left: 0, width: 0, height: 0 } },
+        false,
+        undefined,
+        undefined
+      );
     }
   }
 
@@ -348,28 +400,29 @@ export class SelectionBubbleManager {
   private updateBubble(
     text: string,
     context: string,
-    position: { x: number; y: number },
+    position: {
+      clientRect: {
+        top: number;
+        left: number;
+        width: number;
+        height: number;
+      };
+    },
     isVisible: boolean,
     onTranslate?: (text: string, context: string) => void,
     onSpeech?: (text: string) => void
   ): void {
-    // 重置气泡元素引用，使其在下次渲染时重新查找
-    this.bubbleRef = null;
-    if (!this.root) {
-      console.error("[Lite Lingo] 错误: React 根节点未初始化");
-      return;
-    }
+    if (!this.root) return;
 
-    // 渲染气泡组件
     this.root.render(
       <SelectionBubble
         text={text}
         context={context}
         position={position}
-        isVisible={isVisible}
         onTranslate={onTranslate}
         onSpeech={onSpeech}
-        onClose={() => this.hide()}
+        onClose={this.hide.bind(this)}
+        isVisible={isVisible}
       />
     );
   }
@@ -381,7 +434,9 @@ export class SelectionBubbleManager {
   public getContainer(): HTMLElement | null {
     // 查找实际渲染的气泡元素（使用定义的唯一 ID）
     if (!this.bubbleRef) {
-      this.bubbleRef = document.getElementById("lite-lingo-bubble") as HTMLDivElement | null;
+      this.bubbleRef = document.getElementById(
+        "lite-lingo-bubble"
+      ) as HTMLDivElement | null;
     }
     // 返回气泡元素或容器
     return this.bubbleRef || this.container;
