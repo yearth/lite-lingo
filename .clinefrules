@@ -24,7 +24,7 @@
     - 规则：添加 shadcn/ui 组件
     - 描述：当需要使用新的、项目中尚未存在的 shadcn/ui 组件时。
     - 禁止：**禁止**手动创建组件文件或复制代码。
-    - 要求：**必须**立即报告所需组件名称，并提示“需使用 `npx shadcn-ui@latest add [component-name]` 安装”。
+    - 要求：**必须**立即报告所需组件名称，并提示“需使用 `pnpm dlx shadcn@latest add [component-name]` 安装”。
   </dependency_management>
   <git_commit_messages>
     - 规则：Git Commit 消息规范

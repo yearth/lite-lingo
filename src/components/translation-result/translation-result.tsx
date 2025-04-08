@@ -1,30 +1,26 @@
+import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useRef } from "react";
 import { createPortal } from "react-dom";
-import { useFloatingPosition } from "../../hooks/useFloatingPosition"; // Import hook
-import { DictionaryData } from "../../types/dictionary"; // Corrected import path
-import { ActionButtons } from "./action-buttons"; // Corrected import path
-import { DictionaryDisplay } from "./dictionary-display"; // Corrected import path
-import { ResultHeader } from "./result-header"; // Corrected import path
-import { TextSection } from "./text-section"; // Corrected import path
+import { useFloatingPosition } from "../../hooks/useFloatingPosition";
+import { DictionaryData } from "../../types/dictionary";
+import { Separator } from "../ui/separator";
+import { ActionButtons } from "./action-buttons";
+import { DictionaryDisplay } from "./dictionary-display";
+import { ResultHeader } from "./result-header";
+import { TextSection } from "./text-section";
 
-// Export the props interface
 export interface TranslationResultProps {
-  text: string; // Main translation result
+  text: string;
   originalText: string;
   position: { x: number; y: number };
   isVisible: boolean;
   isLoading: boolean;
-  contextExplanation?: string | null; // New prop for context explanation
-  dictionaryData?: DictionaryData | null; // New prop for dictionary data
+  contextExplanation?: string | null;
+  dictionaryData?: DictionaryData | null;
   onClose: () => void;
-  onSpeech?: (text: string) => void; // Speech for the main translation text
+  onSpeech?: (text: string) => void;
 }
 
-/**
- * 翻译结果组件
- * 用于显示翻译结果，支持流式更新
- */
-// Export the component
 export const TranslationResult: React.FC<TranslationResultProps> = ({
   text,
   originalText,
@@ -33,8 +29,8 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   isLoading,
   onClose,
   onSpeech,
-  contextExplanation, // Destructure new props
-  dictionaryData, // Destructure new props
+  contextExplanation,
+  dictionaryData,
 }) => {
   const resultRef = useRef<HTMLDivElement>(null);
   const resultPosition = useFloatingPosition(position, resultRef, isVisible);
@@ -53,36 +49,30 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
     <div
       ref={resultRef}
       id="lite-lingo-translation-result"
-      className="fixed z-[9999] bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-xs"
+      className="fixed z-[9999] bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-xs min-w-[200px]" // Added min-w-[200px]
       style={{
         left: `${resultPosition.x}px`,
         top: `${resultPosition.y}px`,
-        minWidth: "200px",
       }}
       onClick={(event) => {
         event.stopPropagation();
       }}
     >
       <ResultHeader onClose={onClose} />
-      <TextSection title="原文" text={originalText} />
-      <div className="border-t border-gray-200 my-2"></div>
-      <TextSection
-        title="译文"
-        text={text}
-        isLoading={isLoading && text.length === 0}
-      />
-      {contextExplanation && (
-        <>
-          <div className="border-t border-gray-200 my-2"></div>
-          <TextSection title="上下文解释" text={contextExplanation} />
-        </>
-      )}
-      {dictionaryData && (
-        <>
-          <div className="border-t border-gray-200 my-2"></div>
-          <DictionaryDisplay data={dictionaryData} />
-        </>
-      )}
+      <ScrollArea className="h-48 pr-3">
+        {contextExplanation && (
+          <>
+            <Separator />
+            <TextSection text={contextExplanation} />
+          </>
+        )}
+        {dictionaryData && (
+          <>
+            <Separator />
+            <DictionaryDisplay data={dictionaryData} />
+          </>
+        )}
+      </ScrollArea>
       <ActionButtons
         textToCopy={text}
         onSpeech={handleSpeech}
@@ -94,6 +84,3 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
 
   return createPortal(resultContent, document.body);
 };
-
-// Removed TranslationResultManager class from this file
-// Also remove ReactDOM import if it exists at the top (it shouldn't based on last state)
