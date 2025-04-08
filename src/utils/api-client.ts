@@ -216,15 +216,17 @@ const _apiClientSSE = async (
       // Process buffer line by line
       while ((eolIndex = buffer.indexOf("\n")) >= 0) {
         const line = buffer.slice(0, eolIndex).trim();
+        console.log("[SSE Client] Processing line:", line); // Debug log
         buffer = buffer.slice(eolIndex + 1); // Remove processed line from buffer
 
         if (line.startsWith("data:")) {
           const jsonData = line.slice(5).trim(); // Get content after "data:"
           if (jsonData) {
+            console.log("[SSE Client] Received data:", jsonData); // Debug log
             try {
               const parsedData: ApiResponse<StreamEventPayload> =
                 JSON.parse(jsonData);
-              // console.log("[SSE Client] Received message:", parsedData); // Debug log
+              console.log("[SSE Client] Received message:", parsedData); // Debug log
               callbacks.onMessage(parsedData);
             } catch (parseError) {
               console.error(

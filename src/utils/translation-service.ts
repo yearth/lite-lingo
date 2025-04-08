@@ -9,6 +9,8 @@ interface TranslateParams {
   context?: string;
   targetLanguage?: string;
   sourceLanguage?: string;
+  provider?: string;
+  model?: string;
 }
 
 // 翻译结果处理器接口
@@ -35,6 +37,8 @@ export async function streamTranslate(
     context = "",
     targetLanguage = "zh-CN",
     sourceLanguage,
+    provider,
+    model,
   } = params;
   const { onChunk, onComplete, onError } = handlers;
 
@@ -53,6 +57,8 @@ export async function streamTranslate(
       context,
       targetLanguage,
       sourceLanguage,
+      provider: params.provider || 'openrouter',
+      model: params.model
     });
 
     // 发起请求
@@ -106,9 +112,22 @@ export async function streamTranslate(
             break;
           }
           
-          // 将接收到的数据作为翻译块给回调函数
-          if (chunk.trim()) {
-            onChunk(chunk.trim());
+          // 解析 SSE 格式的消息
+          // 每条 SSE 消息的格式为：
+          // id: [id]
+          // type: [type]
+          // data: [data]
+          // 空行表示消息结束
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              // 提取 data 字段的值
+              const data = line.substring('data:'.length).trim();
+              if (data) {
+                console.log("[Lite Lingo] 提取的翻译数据:", data);
+                onChunk(data);
+              }
+            }
           }
         }
       } catch (error) {
@@ -132,5 +151,3 @@ export async function streamTranslate(
     return () => {};
   }
 }
-
-

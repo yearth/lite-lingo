@@ -1,22 +1,38 @@
-import React, { useState, useEffect, useRef } from "react";
+import { computePosition, offset, shift } from "@floating-ui/dom";
+import { Copy, Volume2, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react"; // Added Fragment
 import { createPortal } from "react-dom";
-import {
-  computePosition,
-  autoPlacement,
-  offset,
-  shift,
-} from "@floating-ui/dom";
 import { Button } from "./ui/button";
-import { X, Volume2, Copy } from "lucide-react";
+
+// Define types for dictionary data based on translate.md
+interface DictionaryExample {
+  original: string;
+  translation: string;
+}
+
+interface DictionaryDefinition {
+  pos: string; // Part of speech
+  def: string; // Definition text
+  examples: DictionaryExample[];
+}
+
+interface DictionaryData {
+  word: string;
+  translation: string;
+  phonetic?: string;
+  definitions: DictionaryDefinition[];
+}
 
 interface TranslationResultProps {
-  text: string;
+  text: string; // Main translation result
   originalText: string;
   position: { x: number; y: number };
   isVisible: boolean;
   isLoading: boolean;
+  contextExplanation?: string | null; // New prop for context explanation
+  dictionaryData?: DictionaryData | null; // New prop for dictionary data
   onClose: () => void;
-  onSpeech?: (text: string) => void;
+  onSpeech?: (text: string) => void; // Speech for the main translation text
 }
 
 /**
@@ -31,12 +47,18 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   isLoading,
   onClose,
   onSpeech,
+  contextExplanation, // Destructure new props
+  dictionaryData, // Destructure new props
 }) => {
   const resultRef = useRef<HTMLDivElement>(null);
   const [resultPosition, setResultPosition] = useState({ x: 0, y: 0 });
   const [copied, setCopied] = useState(false);
 
-  // 计算结果框位置
+  // --- State for dictionary speech ---
+  // We might need separate speech handlers if we want to speak definitions/examples
+  // For now, the main onSpeech prop likely targets the main translation text.
+
+  // --- Calculate result box position ---
   useEffect(() => {
     if (!isVisible || !resultRef.current) return;
 
@@ -57,21 +79,18 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
 
     computePosition(virtualElement as Element, resultRef.current, {
       placement: "bottom",
-      middleware: [
-        offset(10),
-        autoPlacement({ allowedPlacements: ["top", "bottom"] }),
-        shift({ padding: 5 }),
-      ],
+      strategy: "fixed",
+      middleware: [offset(8), shift({ padding: 10 })],
     }).then(({ x, y }) => {
       setResultPosition({ x, y });
     });
-  }, [isVisible, position.x, position.y, text, resultRef.current]);
+  }, [isVisible, position.x, position.y]);
 
   // 处理复制按钮点击
   const handleCopy = (event: React.MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
-    
+
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -82,7 +101,7 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   const handleSpeech = (event: React.MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
-    
+
     if (onSpeech) {
       onSpeech(text);
     }
@@ -125,30 +144,87 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
           <X className="h-3 w-3" />
         </Button>
       </div>
-      
+
       {/* 原文 */}
       <div className="text-xs text-gray-500 mb-1">原文:</div>
-      <div className="text-sm mb-2 break-words">{originalText}</div>
-      
+      <div className="text-sm mb-2 break-words text-gray-500">
+        {originalText}
+      </div>
+
       {/* 分隔线 */}
       <div className="border-t border-gray-200 my-2"></div>
-      
+
       {/* 翻译结果 */}
       <div className="text-xs text-gray-500 mb-1">译文:</div>
-      <div className="text-sm mb-2 break-words">
+      <div className="text-sm mb-2 break-words text-gray-500">
         {isLoading && text.length === 0 ? (
           <div className="flex items-center space-x-1">
             <div className="h-1.5 w-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-            <div className="h-1.5 w-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-            <div className="h-1.5 w-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+            <div
+              className="h-1.5 w-1.5 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: "0.2s" }}
+            ></div>
+            <div
+              className="h-1.5 w-1.5 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: "0.4s" }}
+            ></div>
           </div>
         ) : (
-          text
+          text // Render main translation text
         )}
       </div>
-      
-      {/* 操作按钮 */}
+
+      {/* Context Explanation (New Section) */}
+      {contextExplanation && (
+        <>
+          <div className="border-t border-gray-200 my-2"></div>
+          <div className="text-xs text-gray-500 mb-1">上下文解释:</div>
+          <div className="text-sm mb-2 break-words text-gray-500">
+            {contextExplanation}
+          </div>
+        </>
+      )}
+
+      {/* Dictionary Data (New Section) */}
+      {dictionaryData && (
+        <>
+          <div className="border-t border-gray-200 my-2"></div>
+          {/* Dictionary Header */}
+          <div className="mb-1">
+            <span className="text-sm font-semibold">{dictionaryData.word}</span>
+            {dictionaryData.phonetic && (
+              <span className="text-xs text-gray-500 ml-1">
+                [{dictionaryData.phonetic}]
+              </span>
+            )}
+            <span className="text-sm text-gray-600 ml-2">
+              ({dictionaryData.translation})
+            </span>
+            {/* Add a speech button specifically for the dictionary word? */}
+          </div>
+          {/* Definitions and Examples */}
+          {dictionaryData.definitions.map((def, index) => (
+            <div key={index} className="mb-1.5 ml-1">
+              <div className="text-xs text-blue-600 font-medium">{def.pos}</div>
+              <div className="text-sm text-gray-700 ml-2">{def.def}</div>
+              {def.examples.map((ex, exIndex) => (
+                <div
+                  key={exIndex}
+                  className="text-xs text-gray-500 ml-4 mt-0.5"
+                >
+                  <div>例: {ex.original}</div>
+                  <div>{ex.translation}</div>
+                  {/* Add speech button for example? */}
+                </div>
+              ))}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Action Buttons */}
       <div className="flex justify-end space-x-1 mt-2">
+        {/* Speech button likely targets the main translation 'text' */}
         <Button
           onClick={handleSpeech}
           variant="ghost"
@@ -190,6 +266,28 @@ export class TranslationResultManager {
   private isInitialized: boolean = false;
   private resultRef: HTMLDivElement | null = null;
 
+  // --- Enhanced State Management ---
+  private currentProps: {
+    text: string; // Main translation
+    originalText: string;
+    position: { x: number; y: number };
+    isVisible: boolean;
+    isLoading: boolean;
+    contextExplanation: string | null; // Added state
+    dictionaryData: DictionaryData | null; // Added state
+    onSpeech?: (text: string) => void; // For main translation
+  } = {
+    // Initialize with default values
+    text: "",
+    originalText: "",
+    position: { x: 0, y: 0 },
+    isVisible: false,
+    isLoading: false,
+    contextExplanation: null,
+    dictionaryData: null,
+    onSpeech: undefined,
+  };
+
   /**
    * 初始化结果管理器
    */
@@ -206,8 +304,8 @@ export class TranslationResultManager {
     // 创建 React 根节点
     this.root = ReactDOM.createRoot(this.container);
 
-    // 初始渲染一个隐藏的结果框
-    this.updateResult("", "", { x: 0, y: 0 }, false, false);
+    // Initial render (hidden)
+    this.renderComponent();
 
     this.isInitialized = true;
   }
@@ -222,58 +320,185 @@ export class TranslationResultManager {
     isLoading: boolean = false,
     onSpeech?: (text: string) => void
   ): void {
-    this.updateResult(text, originalText, position, true, isLoading, onSpeech);
+    // Update state and render
+    this.currentProps = {
+      ...this.currentProps, // Keep existing state like onSpeech
+      text: text,
+      originalText: originalText,
+      position: position,
+      isVisible: true,
+      isLoading: isLoading,
+      contextExplanation: null, // Reset structured data on new show
+      dictionaryData: null, // Reset structured data on new show
+      onSpeech: onSpeech, // Update onSpeech callback if provided
+    };
+    this.renderComponent();
   }
 
   /**
-   * 更新翻译结果
+   * Updates only the main translation text.
    */
   public update(text: string, isLoading: boolean = false): void {
-    if (!this.root) return;
-    
-    const currentProps = this.root._internalRoot?.current?.memoizedProps?.children?.props;
-    if (!currentProps) return;
-    
-    const { originalText, position, isVisible, onSpeech } = currentProps;
-    this.updateResult(text, originalText, position, isVisible, isLoading, onSpeech);
+    console.log("[Lite Lingo] Updating main translation text", {
+      text,
+      isLoading,
+    });
+    this.currentProps = {
+      ...this.currentProps,
+      text: text,
+      isLoading: isLoading,
+      isVisible: true, // Ensure it's visible when updating
+    };
+    this.renderComponent();
   }
 
   /**
-   * 隐藏翻译结果
+   * Updates the context explanation text.
    */
-  public hide(): void {
-    if (this.root) {
-      this.updateResult("", "", { x: 0, y: 0 }, false, false);
-    }
+  public updateContextExplanation(explanation: string): void {
+    console.log("[Lite Lingo] Updating context explanation", { explanation });
+    this.currentProps = {
+      ...this.currentProps,
+      contextExplanation: explanation,
+      isLoading: true, // Keep loading as more data might come
+      isVisible: true,
+    };
+    this.renderComponent();
   }
 
   /**
-   * 更新结果内容和状态
+   * Starts rendering the dictionary section.
    */
-  private updateResult(
-    text: string,
-    originalText: string,
-    position: { x: number; y: number },
-    isVisible: boolean,
-    isLoading: boolean,
-    onSpeech?: (text: string) => void
+  public startDictionary(data: DictionaryData): void {
+    console.log("[Lite Lingo] Starting dictionary", data);
+    this.currentProps = {
+      ...this.currentProps,
+      dictionaryData: { ...data, definitions: [] }, // Initialize with header data
+      isLoading: true,
+      isVisible: true,
+    };
+    this.renderComponent();
+  }
+
+  /**
+   * Adds a definition to the current dictionary entry.
+   */
+  public addDefinition(
+    definitionData: Omit<DictionaryDefinition, "examples">
   ): void {
-    this.resultRef = null;
-    if (!this.root) {
-      console.error("[Lite Lingo] 错误: 翻译结果 React 根节点未初始化");
+    if (!this.currentProps.dictionaryData) {
+      console.warn("[Lite Lingo] Cannot add definition: No active dictionary.");
       return;
     }
+    console.log("[Lite Lingo] Adding definition", definitionData);
+    this.currentProps.dictionaryData.definitions.push({
+      ...definitionData,
+      examples: [], // Initialize examples array
+    });
+    // No need to update isLoading here, keep it true
+    this.renderComponent();
+  }
 
-    // 渲染结果组件
+  /**
+   * Adds an example to the last definition in the current dictionary entry.
+   */
+  public addExample(exampleData: DictionaryExample): void {
+    if (
+      !this.currentProps.dictionaryData ||
+      this.currentProps.dictionaryData.definitions.length === 0
+    ) {
+      console.warn("[Lite Lingo] Cannot add example: No active definition.");
+      return;
+    }
+    console.log("[Lite Lingo] Adding example", exampleData);
+    const lastDefinition =
+      this.currentProps.dictionaryData.definitions[
+        this.currentProps.dictionaryData.definitions.length - 1
+      ];
+    lastDefinition.examples.push(exampleData);
+    // No need to update isLoading here, keep it true
+    this.renderComponent();
+  }
+
+  /**
+   * Optional: Called when the dictionary section is complete.
+   */
+  public endDictionary(): void {
+    console.log("[Lite Lingo] Ending dictionary section");
+    // We might not need to do anything specific here unless UI needs finalization
+    // The dictionaryData state remains until hide() or new show()
+    // Keep isLoading true until 'done' message arrives
+    this.renderComponent(); // Re-render just in case
+  }
+
+  /**
+   * Hides the translation result panel and resets state.
+   */
+  public hide(): void {
+    console.log("[Lite Lingo] Hiding translation result");
+    this.currentProps = {
+      ...this.currentProps, // Keep onSpeech maybe? Or reset? Let's reset for now.
+      text: "",
+      originalText: "",
+      // position: { x: 0, y: 0 }, // Keep last position? Doesn't matter if hidden
+      isVisible: false,
+      isLoading: false,
+      contextExplanation: null,
+      dictionaryData: null,
+      onSpeech: undefined,
+    };
+    this.renderComponent();
+  }
+
+  /**
+   * Sets the loading state. Typically called when the stream completes.
+   */
+  public setLoading(isLoading: boolean): void {
+    console.log("[Lite Lingo] Setting loading state", { isLoading });
+    if (this.currentProps.isLoading === isLoading) return; // Avoid unnecessary re-renders
+
+    this.currentProps = {
+      ...this.currentProps,
+      isLoading: isLoading,
+      // isVisible should already be true if we are setting loading to false after receiving data
+    };
+    this.renderComponent();
+  }
+
+  /**
+   * Renders the TranslationResult component with current state.
+   */
+  private renderComponent(): void {
+    if (!this.root) {
+      console.error(
+        "[Lite Lingo] Error: Translation result React root not initialized."
+      );
+      return;
+    }
+    if (!this.isInitialized) {
+      console.warn(
+        "[Lite Lingo] Warning: Attempted to render before initialization."
+      );
+      // return; // Allow initial render
+    }
+
+    console.log(
+      "[Lite Lingo] Rendering TranslationResult with props:",
+      this.currentProps
+    );
+
+    // Render the component with all current props
     this.root.render(
       <TranslationResult
-        text={text}
-        originalText={originalText}
-        position={position}
-        isVisible={isVisible}
-        isLoading={isLoading}
+        text={this.currentProps.text}
+        originalText={this.currentProps.originalText}
+        position={this.currentProps.position}
+        isVisible={this.currentProps.isVisible}
+        isLoading={this.currentProps.isLoading}
+        contextExplanation={this.currentProps.contextExplanation}
+        dictionaryData={this.currentProps.dictionaryData}
         onClose={() => this.hide()}
-        onSpeech={onSpeech}
+        onSpeech={this.currentProps.onSpeech}
       />
     );
   }
@@ -283,7 +508,9 @@ export class TranslationResultManager {
    */
   public getContainer(): HTMLElement | null {
     if (!this.resultRef) {
-      this.resultRef = document.getElementById("lite-lingo-translation-result") as HTMLDivElement | null;
+      this.resultRef = document.getElementById(
+        "lite-lingo-translation-result"
+      ) as HTMLDivElement | null;
     }
     return this.resultRef || this.container;
   }

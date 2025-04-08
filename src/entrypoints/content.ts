@@ -10,9 +10,9 @@ import {
   type BackgroundRequestMessage,
   type BackgroundResponseMessage,
   type ContentScriptStreamMessage,
-  isStreamChunkMessage,
   isStreamCompleteMessage,
   isStreamErrorMessage,
+  isStreamEventMessage, // Ensure this is imported
   MSG_TYPE_MUTATION_REQUEST_TTS,
   MSG_TYPE_MUTATION_TRANSLATE_STREAM,
   type RequestTtsPayload,
@@ -150,35 +150,157 @@ export default defineContentScript({
       );
     };
 
-    // --- 新增：监听来自 Background 的流式消息 ---
-    let currentTranslatedText = ""; // 用于累积流式结果
+    // --- 更新：监听来自 Background 的流式消息 ---
+    // let currentTranslatedText = ""; // Removed: No longer accumulating simple text
+    // Add state for dictionary if needed
+    let currentDictionaryEntry: any = null; // Simple state for dictionary context
+
     chrome.runtime.onMessage.addListener(
       (message: ContentScriptStreamMessage, sender, sendResponse) => {
-        // 确保消息来自 background (虽然 tabs.sendMessage 已经指定了 tab)
+        // 确保消息来自 background
         // 实际应用中可能不需要这个检查，除非有其他扩展或脚本可能发送消息
         // if (!sender.tab) { // 消息来自扩展内部，非 content script 发给 content script
         // }
 
-        console.log("[Lite Lingo] 收到消息:", message);
+        console.log("[Lite Lingo] Received message:", message);
+        console.log(
+          "[Lite Lingo] Received message isStreamEventMessage:",
+          isStreamEventMessage(message)
+        );
 
-        if (isStreamChunkMessage(message)) {
-          currentTranslatedText += message.payload.chunk;
-          translationResult.update(currentTranslatedText, true); // 保持加载状态直到完成
-          console.log("[Lite Lingo] 更新翻译块:", message.payload.chunk);
-        } else if (isStreamErrorMessage(message)) {
-          console.error("[Lite Lingo] 收到流式错误:", message.payload.error);
-          translationResult.update(
-            `翻译出错: ${message.payload.error}`,
-            false // 结束加载状态
+        if (isStreamEventMessage(message)) {
+          const streamEvent = message.payload; // No need for assertion if type guard is correct
+          const eventPayload = streamEvent.payload;
+
+          // TODO: Update TranslationResultManager/Component to render structured data
+          console.log(
+            `[Lite Lingo] Processing Stream Event: ${streamEvent.type}`,
+            eventPayload
           );
-          currentTranslatedText = ""; // 重置累积文本
+
+          switch (streamEvent.type) {
+            case "analysis_info":
+              // Optional: Update UI based on input type if needed
+              console.log(
+                "[Lite Lingo] Analysis Info:",
+                eventPayload?.inputType,
+                eventPayload?.sourceText
+              );
+              // Example: translationResult.showAnalysisInfo(eventPayload);
+              break;
+            case "context_explanation":
+              console.log(
+                "[Lite Lingo] Context Explanation:",
+                eventPayload?.text
+              );
+              // Assuming TranslationResultManager has this method
+              translationResult.updateContextExplanation(
+                eventPayload?.text ?? ""
+              );
+              break;
+            case "dictionary_start":
+              console.log("[Lite Lingo] Dictionary Start:", eventPayload);
+              // Initialize local state for the dictionary entry
+              currentDictionaryEntry = {
+                ...(eventPayload ?? {}), // Start with payload data (word, translation, phonetic)
+                definitions: [], // Initialize definitions array
+              };
+              // Assuming TranslationResultManager has this method
+              translationResult.startDictionary(currentDictionaryEntry);
+              break;
+            case "definition":
+              if (currentDictionaryEntry) {
+                console.log("[Lite Lingo] Definition:", eventPayload);
+                const newDefinition = {
+                  ...(eventPayload ?? {}), // Get pos and def
+                  examples: [], // Initialize examples for this definition
+                };
+                currentDictionaryEntry.definitions.push(newDefinition);
+                // Assuming TranslationResultManager has this method
+                translationResult.addDefinition(newDefinition);
+              } else {
+                console.warn(
+                  "[Lite Lingo] Received 'definition' event without active dictionary entry."
+                );
+              }
+              break;
+            case "example":
+              if (
+                currentDictionaryEntry &&
+                currentDictionaryEntry.definitions.length > 0
+              ) {
+                console.log("[Lite Lingo] Example:", eventPayload);
+                const lastDefinition =
+                  currentDictionaryEntry.definitions[
+                    currentDictionaryEntry.definitions.length - 1
+                  ];
+                // Ensure examples array exists on the last definition
+                lastDefinition.examples = lastDefinition.examples || [];
+                lastDefinition.examples.push(eventPayload ?? {}); // Add the example payload
+                // Assuming TranslationResultManager has this method
+                translationResult.addExample(eventPayload ?? {});
+              } else {
+                console.warn(
+                  "[Lite Lingo] Received 'example' event without active definition."
+                );
+              }
+              break;
+            case "dictionary_end":
+              console.log("[Lite Lingo] Dictionary End");
+              // Assuming TranslationResultManager might have a method for this, e.g., for styling
+              translationResult.endDictionary?.(); // Optional chaining if method might not exist
+              currentDictionaryEntry = null; // Reset local state
+              break;
+            case "translation_result":
+              console.log(
+                "[Lite Lingo] Translation Result:",
+                eventPayload?.text
+              );
+              // Use the existing update method to show the main translation text
+              // Keep loading indicator active (true) as 'done' event hasn't arrived yet
+              translationResult.update(eventPayload?.text ?? "", true);
+              break;
+            // Errors reported within the stream are handled by isStreamErrorMessage block
+            // case "fragment_error":
+            // case "parsing_error": // Handled by isStreamErrorMessage
+            // case "error":         // Handled by isStreamErrorMessage
+            // case "done":          // Handled by isStreamCompleteMessage
+            //    break;
+            default:
+              // Log unhandled specific stream event types
+              console.warn(
+                "[Lite Lingo] Received unhandled stream event type:",
+                streamEvent.type
+              );
+          }
+        } else if (isStreamErrorMessage(message)) {
+          console.error(
+            "[Lite Lingo] Received stream error:",
+            message.payload.error
+          );
+          // Update UI to show the error message
+          translationResult.update(`翻译出错: ${message.payload.error}`, false); // End loading state
+          currentDictionaryEntry = null; // Reset dictionary state on error
         } else if (isStreamCompleteMessage(message)) {
-          console.log("[Lite Lingo] 收到流式完成信号");
-          translationResult.update(currentTranslatedText, false); // 结束加载状态
-          currentTranslatedText = ""; // 重置累积文本
+          console.log(
+            "[Lite Lingo] Received stream complete signal:",
+            message.payload.status
+          );
+          // Finalize UI state, end loading indicator
+          // The last text update might have already happened via a 'translation_result' event
+          // We just need to turn off the loading state.
+          // We might need to get the final accumulated text if the UI manager doesn't store it.
+          // For now, assume the last update was sufficient and just turn off loading.
+          translationResult.setLoading(false);
+          currentDictionaryEntry = null; // Reset dictionary state
+          if (message.payload.status === "failed") {
+            // Optionally display a generic failure message if no specific error was shown
+            // translationResult.showError("翻译失败");
+          }
         } else {
-          // 忽略其他类型的消息
-          console.log("[Lite Lingo] 收到未知或非流式消息，忽略");
+          console.log(
+            "[Lite Lingo] Received unknown or non-stream message, ignoring"
+          );
         }
 
         // 对于 onMessage，如果不需要异步发送响应，可以不返回 true
@@ -287,8 +409,8 @@ export default defineContentScript({
         target: (event.target as Element)?.tagName,
       });
 
-      // 重置累积的翻译文本，因为用户点击了其他地方
-      currentTranslatedText = "";
+      // Reset dictionary state on external click
+      currentDictionaryEntry = null;
 
       // 获取气泡容器元素
       const bubbleContainer = selectionBubble.getContainer();

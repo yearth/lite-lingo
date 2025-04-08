@@ -4,12 +4,13 @@
 export const MSG_TYPE_QUERY_FETCH_NOTEBOOK = "QUERY_FETCH_NOTEBOOK";
 export const MSG_TYPE_MUTATION_ADD_WORD = "MUTATION_ADD_WORD";
 export const MSG_TYPE_MUTATION_REQUEST_TTS = "MUTATION_REQUEST_TTS";
-export const MSG_TYPE_MUTATION_TRANSLATE_STREAM = "MUTATION_TRANSLATE_STREAM"; // Renamed for clarity
+export const MSG_TYPE_MUTATION_TRANSLATE_STREAM = "MUTATION_TRANSLATE_STREAM";
 
 // Background -> Content Script (Stream updates via chrome.tabs.sendMessage)
-export const MSG_TYPE_STREAM_CHUNK = "STREAM_CHUNK";
-export const MSG_TYPE_STREAM_ERROR = "STREAM_ERROR";
-export const MSG_TYPE_STREAM_COMPLETE = "STREAM_COMPLETE";
+// export const MSG_TYPE_STREAM_CHUNK = "STREAM_CHUNK"; // Superseded by STREAM_EVENT
+export const MSG_TYPE_STREAM_EVENT = "STREAM_EVENT"; // New type for structured events
+export const MSG_TYPE_STREAM_ERROR = "STREAM_ERROR"; // For connection or top-level API errors
+export const MSG_TYPE_STREAM_COMPLETE = "STREAM_COMPLETE"; // Sent when 'done' event is received
 
 // --- 消息结构 ---
 
@@ -19,7 +20,7 @@ export interface BackgroundRequestMessage<P = any> {
   payload: P;
 }
 
-// Background -> UI (Response to chrome.runtime.sendMessage)
+// Background -> UI (Response to chrome.runtime.sendMessage - for initial request ack/error)
 export interface BackgroundResponseMessage<T = any> {
   success: boolean;
   data?: T;
@@ -27,32 +28,45 @@ export interface BackgroundResponseMessage<T = any> {
 }
 
 // Background -> Content Script (via chrome.tabs.sendMessage for stream updates)
+// Represents messages sent from background *during* the stream
 export interface ContentScriptStreamMessage<P = any> {
   type:
-    | typeof MSG_TYPE_STREAM_CHUNK
-    | typeof MSG_TYPE_STREAM_ERROR
-    | typeof MSG_TYPE_STREAM_COMPLETE;
+    | typeof MSG_TYPE_STREAM_EVENT // Contains StreamEventPayload
+    | typeof MSG_TYPE_STREAM_ERROR // Contains StreamErrorPayload
+    | typeof MSG_TYPE_STREAM_COMPLETE; // Contains void/null or status info
+  payload: P;
+}
+
+// --- SSE Stream Event Payload (Mirrors backend structure from translate.md) ---
+export interface StreamEventPayload<P = any> {
+  /**
+   * 事件类型 (由 AI 生成或后端添加):
+   * 'analysis_info', 'context_explanation', 'dictionary_start', 'definition',
+   * 'example', 'dictionary_end', 'translation_result', 'fragment_error',
+   * 'parsing_error', 'error', 'done'
+   */
+  type: string;
+  /**
+   * 事件的具体数据负载，结构取决于 type。
+   */
   payload: P;
 }
 
 // --- 具体 Payload 接口 ---
 
 // 获取单词本列表 (无特定 payload)
-// 使用 BackgroundRequestMessage<void> 或 BackgroundRequestMessage<null>
 
 // 添加单词到笔记本
 export interface AddWordPayload {
   word: string;
   translation: string;
   context?: string;
-  // 其他需要的字段...
 }
 
 // 请求 TTS
 export interface RequestTtsPayload {
   text: string;
-  language: "en" | "zh"; // 假设支持的语言
-  // 其他 TTS 选项...
+  language: "en" | "zh";
 }
 
 // 启动翻译流
@@ -60,56 +74,64 @@ export interface TranslateStreamPayload {
   text: string;
   context?: string;
   targetLanguage: string;
-  // Note: tabId is automatically available in background via sender.tab.id
 }
 
-// 流式数据块
-export interface StreamChunkPayload {
-  chunk: string;
-}
+// // 流式数据块 - Superseded by StreamEventPayload with type 'text_chunk'
+// export interface StreamChunkPayload {
+//   chunk: string;
+// }
 
-// 流式错误
+// 流式错误 (for connection/processing errors sent via MSG_TYPE_STREAM_ERROR)
 export interface StreamErrorPayload {
   error: string;
 }
 
-// 流式完成 (无特定 payload)
-// 使用 ContentScriptStreamMessage<void> 或 ContentScriptStreamMessage<null>
+// 流式完成 (Payload for MSG_TYPE_STREAM_COMPLETE, could contain final status)
+export interface StreamCompletePayload {
+  status: "completed" | "failed"; // Reflects the status from the 'done' event
+}
 
 // --- 响应数据类型示例 (for BackgroundResponseMessage) ---
 
-// 单词本列表的数据类型 (你需要根据实际情况定义)
+// 单词本列表的数据类型
 export interface YourWordType {
   id: string;
   word: string;
   translation: string;
   context?: string;
   createdAt: string;
-  // ...
 }
 
-// TTS 请求成功时的数据类型 (可能只是一个确认，或音频 URL/Blob ID)
-// 假设返回音频 Blob 的 Object URL 或指示成功
+// TTS 请求成功时的数据类型
 export interface TtsSuccessData {
-  audioUrl?: string; // 或者 boolean,或者无 data
-  message?: string; // e.g., "Speech synthesis started"
+  message?: string; // e.g., "TTS initiated"
 }
 
-// 添加单词成功的响应数据 (可能只是新单词的 ID 或确认)
+// 添加单词成功的响应数据
 export interface AddWordSuccessData {
-  newWordId: string; // 示例
+  newWordId: string;
 }
 
 // --- 类型守卫 (Type Guards) ---
-// 可选，但有助于在 onMessage 监听器中区分消息类型
 
-export function isStreamChunkMessage(
+// export function isStreamChunkMessage( // Removed
+//   msg: any
+// ): msg is ContentScriptStreamMessage<StreamChunkPayload> {
+//   return (
+//     msg &&
+//     msg.type === MSG_TYPE_STREAM_CHUNK &&
+//     typeof msg.payload?.chunk === "string"
+//   );
+// }
+
+export function isStreamEventMessage(
   msg: any
-): msg is ContentScriptStreamMessage<StreamChunkPayload> {
+): msg is ContentScriptStreamMessage<StreamEventPayload> {
   return (
     msg &&
-    msg.type === MSG_TYPE_STREAM_CHUNK &&
-    typeof msg.payload?.chunk === "string"
+    msg.type === MSG_TYPE_STREAM_EVENT &&
+    typeof msg.payload?.type === "string" && // Check for inner type property
+    msg.payload?.payload !== undefined // Check for inner payload property
   );
 }
 
@@ -125,6 +147,11 @@ export function isStreamErrorMessage(
 
 export function isStreamCompleteMessage(
   msg: any
-): msg is ContentScriptStreamMessage<void> {
-  return msg && msg.type === MSG_TYPE_STREAM_COMPLETE;
+): msg is ContentScriptStreamMessage<StreamCompletePayload> {
+  // Check payload status for completeness
+  return (
+    msg &&
+    msg.type === MSG_TYPE_STREAM_COMPLETE &&
+    typeof msg.payload?.status === "string"
+  );
 }
