@@ -134,7 +134,7 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
     <div
       ref={bubbleRef}
       id="lite-lingo-bubble" // Keep this ID for the manager's getContainer
-      className="fixed z-[9999] bg-white rounded-full shadow-lg border border-gray-200 p-1 flex items-center gap-1"
+      className="fixed z-[9999] rounded-lg shadow-lg p-1 flex items-center gap-1 bg-white border border-gray-200 light" // Changed rounded-full to rounded-lg
       style={{
         left: `${bubblePosition?.x || 0}px`,
         top: `${bubblePosition?.y || 0}px`,

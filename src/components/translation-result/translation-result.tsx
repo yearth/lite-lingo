@@ -49,7 +49,7 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
     <div
       ref={resultRef}
       id="lite-lingo-translation-result"
-      className="fixed z-[9999] bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-xs min-w-[200px]" // Added min-w-[200px]
+      className="fixed z-[9999] rounded-lg shadow-lg p-3 max-w-xs min-w-[200px] bg-white border border-gray-200 light" // Removed dark classes, added light class and min-w
       style={{
         left: `${resultPosition.x}px`,
         top: `${resultPosition.y}px`,

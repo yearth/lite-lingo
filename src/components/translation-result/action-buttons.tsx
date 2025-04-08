@@ -1,7 +1,7 @@
 import { Copy, Volume2 } from "lucide-react";
 import React from "react";
-import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"; // Import the hook
-import { Button } from "../ui/button"; // Assuming Button is in ../ui/button
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { Button } from "../ui/button";
 
 interface ActionButtonsProps {
   textToCopy: string;
@@ -16,24 +16,22 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   isSpeechDisabled = false,
   isCopyDisabled = false,
 }) => {
-  // Use the hook internally for copy functionality
   const { copy, copied } = useCopyToClipboard();
 
   const handleCopyClick = (event: React.MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
-    copy(textToCopy); // Call the copy function from the hook
+    copy(textToCopy);
   };
 
   const handleSpeechClick = (event: React.MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
-    onSpeech(); // Call the passed-in onSpeech handler
+    onSpeech();
   };
 
   return (
     <div className="flex justify-end space-x-1 mt-2">
-      {/* Speech button */}
       <Button
         onClick={handleSpeechClick}
         variant="ghost"
@@ -44,7 +42,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
       >
         <Volume2 className="h-3 w-3" />
       </Button>
-      {/* Copy button */}
       <Button
         onClick={handleCopyClick}
         variant="ghost"

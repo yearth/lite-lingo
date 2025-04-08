@@ -9,7 +9,11 @@ interface ResultHeaderProps {
 export const ResultHeader: React.FC<ResultHeaderProps> = ({ onClose }) => {
   return (
     <div className="flex justify-between items-center mb-2">
-      <div className="text-xs text-gray-500 font-medium">翻译结果</div>
+      <div className="text-xs text-gray-500 font-medium">
+        {" "}
+        {/* Removed dark text color */}
+        翻译结果
+      </div>{" "}
       <Button
         onClick={(event) => {
           event.stopPropagation();
@@ -18,10 +22,10 @@ export const ResultHeader: React.FC<ResultHeaderProps> = ({ onClose }) => {
         }}
         variant="ghost"
         size="icon"
-        className="h-5 w-5 rounded-full hover:bg-gray-100"
+        className="h-5 w-5 rounded-full hover:bg-gray-100" // Removed dark hover
         title="关闭"
       >
-        <X className="h-3 w-3" />
+        <X className="h-3 w-3 text-gray-700" /> {/* Removed dark text color */}
       </Button>
     </div>
   );

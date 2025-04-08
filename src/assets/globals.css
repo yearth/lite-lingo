@@ -121,3 +121,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom hover style for bubble buttons using JS */
+.bubble-button.bubble-button-hover {
+  background-color: theme("colors.gray.100");
+}

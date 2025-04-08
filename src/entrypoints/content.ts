@@ -1,3 +1,4 @@
+import "@/assets/globals.css";
 import { SelectionBubbleManager } from "../components/selection-bubble";
 import { TranslationResultManager } from "../components/translation-result";
 import {
@@ -40,7 +41,7 @@ export default defineContentScript({
     const translationResult = new TranslationResultManager();
     translationResult.init();
 
-    // // 用于存储取消翻译的函数 - Removed: Cancellation logic might be handled differently via messaging
+    // // 用于存储取消翻译的函数
     // let cancelTranslation: (() => void) | null = null;
 
     // 处理翻译按钮点击
@@ -428,9 +429,9 @@ export default defineContentScript({
         // 隐藏气泡，但保留翻译结果
         selectionBubble.hide();
       } else {
-        console.log("[Lite Lingo] 点击在气泡和翻译结果外部，准备隐藏");
+        console.log("[Lite Lingo] 点击在气泡和翻译结果外部，准备隐藏气泡"); // 更新日志消息
         selectionBubble.hide();
-        translationResult.hide();
+        // translationResult.hide(); // <-- 已移除此行
 
         // // 取消正在进行的翻译 - Removed: Handled differently now
         // if (cancelTranslation) {
