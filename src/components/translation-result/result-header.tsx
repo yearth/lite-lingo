@@ -8,7 +8,9 @@ interface ResultHeaderProps {
 
 export const ResultHeader: React.FC<ResultHeaderProps> = ({ onClose }) => {
   return (
-    <div className="flex justify-between items-center mb-2">
+    <div className="flex justify-between items-center mb-2 translation-result-drag-handle cursor-move">
+      {" "}
+      {/* Added handle class and cursor */}
       <div className="text-xs text-gray-500 font-medium">
         {" "}
         {/* Removed dark text color */}

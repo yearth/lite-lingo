@@ -10,6 +10,7 @@
   - CSS 方案：Tailwind CSS (^4.0.0)
   - UI 组件库：shadcn/ui
   - 浮动 UI：Floating UI
+  - 拖拽库：react-draggable
   - hooks 方案: react-use
 </technology_stack>
 

@@ -425,9 +425,8 @@ export default defineContentScript({
       if (isClickInBubble) {
         console.log("[Lite Lingo] 点击在气泡内部，保持显示");
       } else if (isClickInResult) {
-        console.log("[Lite Lingo] 点击在翻译结果内部，保持显示");
-        // 隐藏气泡，但保留翻译结果
-        selectionBubble.hide();
+        console.log("[Lite Lingo] 点击在翻译结果内部，保持显示，不隐藏气泡");
+        // 不再隐藏气泡 selectionBubble.hide(); // <-- REMOVED
       } else {
         console.log("[Lite Lingo] 点击在气泡和翻译结果外部，准备隐藏气泡"); // 更新日志消息
         selectionBubble.hide();
