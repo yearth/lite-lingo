@@ -19,12 +19,13 @@ export class TranslationResultManager {
   private isInitialized: boolean = false;
 
   // Store the props needed by TranslationResult component
-  private currentProps: Omit<TranslationResultProps, "onClose"> & {
-    position: { x: number; y: number };
+  // Update position type to accept Range or null for positioning relative to selection
+  private currentProps: Omit<TranslationResultProps, "onClose" | "position"> & {
+    position: Range | null; // Changed from { x: number; y: number }
   } = {
     text: "",
     originalText: "",
-    position: { x: 0, y: 0 },
+    position: null, // Initialize as null
     isVisible: false,
     isLoading: false,
     contextExplanation: null,
@@ -46,10 +47,11 @@ export class TranslationResultManager {
     this.isInitialized = true;
   }
 
+  // Update show method to accept Range for positioning
   public show(
     text: string,
     originalText: string,
-    position: { x: number; y: number },
+    position: Range, // Changed from { x: number; y: number }
     isLoading: boolean = false,
     onSpeech?: (text: string) => void
   ): void {
@@ -158,6 +160,7 @@ export class TranslationResultManager {
         originalText: "",
         isVisible: false,
         isLoading: false,
+        position: null, // Reset position on hide
         contextExplanation: null,
         dictionaryData: null,
         onSpeech: undefined,
