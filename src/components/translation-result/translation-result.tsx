@@ -1,8 +1,15 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import React, { useRef } from "react"; // Import useState and useEffect
+import {
+  autoUpdate,
+  flip,
+  offset,
+  shift,
+  useFloating,
+  VirtualElement,
+} from "@floating-ui/react"; // Import Floating UI hooks and types
+import React, { useEffect, useMemo, useRef } from "react"; // Remove useState import
 import { createPortal } from "react-dom";
-import Draggable from "react-draggable"; // Import Draggable
-import { useFloatingPosition } from "../../hooks/useFloatingPosition";
+// import Draggable, { DraggableData, DraggableEvent } from "react-draggable"; // Comment out Draggable import
 import { DictionaryData } from "../../types/dictionary";
 import { Separator } from "../ui/separator";
 import { ActionButtons } from "./action-buttons";
@@ -13,7 +20,7 @@ import { TextSection } from "./text-section";
 export interface TranslationResultProps {
   text: string;
   originalText: string;
-  position: { x: number; y: number };
+  position: Range | null; // Changed type to accept Range or null
   isVisible: boolean;
   isLoading: boolean;
   contextExplanation?: string | null;
@@ -33,13 +40,72 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   contextExplanation,
   dictionaryData,
 }) => {
-  const resultRef = useRef<HTMLDivElement>(null); // Keep this ref for initial position calculation if needed by useFloatingPosition
-  const nodeRef = useRef<HTMLDivElement>(null); // Ref for Draggable
-  const initialPosition = useFloatingPosition(position, resultRef, isVisible); // Use resultRef for initial calculation
-  // Removed deltaPosition and isDragging states
-  // Removed useEffect for resetting deltaPosition
-  // Removed handleDrag function
-  // Removed finalPosition calculation
+  // Floating UI setup
+  const referenceElement = useMemo((): VirtualElement | null => {
+    if (!position) return null;
+    // Try using getClientRects()[0] for potentially more accurate positioning,
+    // especially for multi-line selections. Fallback to getBoundingClientRect.
+    const rect =
+      position.getClientRects().length > 0
+        ? position.getClientRects()[0]
+        : position.getBoundingClientRect();
+
+    console.log("[Lite Lingo] Rendering TranslationResult rect:", rect);
+
+    return {
+      getBoundingClientRect: () => rect,
+      // getClientRects is optional for VirtualElement
+      // getClientRects: () => position.getClientRects(),
+      contextElement: position.startContainer.parentElement ?? undefined,
+    };
+  }, [position]);
+
+  // Initialize useFloating without the elements option initially
+  const { refs, floatingStyles, context } = useFloating({
+    // elements: { // Removed from here
+    //   reference: referenceElement,
+    // },
+    whileElementsMounted: autoUpdate,
+    placement: "bottom-start", // Or choose another placement
+    middleware: [
+      offset(10), // Add some space between selection and result box
+      flip(), // Flip to opposite side if not enough space
+      shift({ padding: 5 }), // Prevent overflow
+    ],
+  });
+
+  // Use useEffect to set the reference element when it changes
+  useEffect(() => {
+    console.log(
+      "[Lite Lingo] Rendering TranslationResult referenceElement:",
+      referenceElement
+    );
+
+    refs.setReference(referenceElement);
+  }, [refs, referenceElement]);
+
+  const nodeRef = useRef<HTMLDivElement>(null); // Keep nodeRef for Draggable
+
+  // Combine refs for Floating UI and Draggable
+  const mergedRef = useMemo(() => {
+    return (instance: HTMLDivElement | null) => {
+      refs.setFloating(instance);
+      (nodeRef as React.MutableRefObject<HTMLDivElement | null>).current =
+        instance;
+    };
+  }, [refs, nodeRef]);
+
+  // Remove drag offset state and handler
+  // const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  // useEffect(() => {
+  //   setDragOffset({ x: 0, y: 0 });
+  // }, [position]);
+  // const handleDrag = (e: DraggableEvent, data: DraggableData) => {
+  //   setDragOffset((prev) => ({
+  //     x: prev.x + data.deltaX,
+  //     y: prev.y + data.deltaY,
+  //   }));
+  // };
 
   const handleSpeech = () => {
     if (onSpeech) {
@@ -51,59 +117,54 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
     return null;
   }
 
-  // Removed conditional positionStyle
+  // Log the calculated styles before rendering
+  console.log("[Lite Lingo] Calculated Floating Styles:", floatingStyles);
+
+  // Log the calculated styles before rendering
+  console.log("[Lite Lingo] Calculated Floating Styles:", floatingStyles);
 
   const resultContent = (
-    <Draggable
-      nodeRef={nodeRef as React.RefObject<HTMLElement>} // Pass ref to Draggable with type assertion
-      handle=".translation-result-drag-handle" // Specify the drag handle
-      // Removed onDrag prop
-      // Removed position prop
-      defaultPosition={{ x: initialPosition.x, y: initialPosition.y }} // Use defaultPosition for initial placement
-      // bounds="parent" // Optional: restrict dragging within parent/window
-      // Removed onStart prop
-      // onStop={() => { /* Potentially update state if needed after drag */ }}
+    // Comment out Draggable again
+    // <Draggable
+    //   nodeRef={nodeRef as React.RefObject<HTMLElement>}
+    //   handle=".translation-result-drag-handle"
+    //   onDrag={handleDrag}
+    //   position={dragOffset}
+    // >
+    <div
+      // Apply Floating UI ref directly when Draggable is removed
+      // Use floatingStyles directly for positioning
+      ref={refs.setFloating} // Apply Floating UI ref directly
+      id="lite-lingo-translation-result"
+      className="z-[9999] rounded-lg shadow-lg p-3 max-w-xs min-w-[200px] bg-white border border-gray-200 light cursor-default"
+      style={floatingStyles} // Apply floatingStyles directly
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
     >
-      {/* The Draggable component wraps the element it makes draggable */}
-      <div
-        ref={nodeRef} // Attach ref here for Draggable
-        id="lite-lingo-translation-result"
-        className="fixed z-[9999] rounded-lg shadow-lg p-3 max-w-xs min-w-[200px] bg-white border border-gray-200 light cursor-default" // Removed dark classes, added light class, min-w, default cursor
-        style={{
-          left: `${initialPosition.x}px`,
-          top: `${initialPosition.y}px`,
-        }} // Re-added style for initial position
-        onClick={(event) => {
-          // Prevent clicks inside from closing the panel (already handled in content script, but good practice)
-          event.stopPropagation();
-        }}
-      >
-        <ResultHeader onClose={onClose} />
-        <ScrollArea
-          className="h-48 pr-3"
-          onWheel={(e) => e.stopPropagation()} // Prevent page scroll when scrolling inside ScrollArea
-        >
-          {contextExplanation && (
-            <>
-              <Separator />
-              <TextSection text={contextExplanation} />
-            </>
-          )}
-          {dictionaryData && (
-            <>
-              <Separator />
-              <DictionaryDisplay data={dictionaryData} />
-            </>
-          )}
-        </ScrollArea>
-        <ActionButtons
-          textToCopy={text}
-          onSpeech={handleSpeech}
-          isSpeechDisabled={isLoading || text.length === 0}
-          isCopyDisabled={isLoading || text.length === 0}
-        />
-      </div>
-    </Draggable>
+      <ResultHeader onClose={onClose} />
+      <ScrollArea className="h-48 pr-3" onWheel={(e) => e.stopPropagation()}>
+        {contextExplanation && (
+          <>
+            <Separator />
+            <TextSection text={contextExplanation} />
+          </>
+        )}
+        {dictionaryData && (
+          <>
+            <Separator />
+            <DictionaryDisplay data={dictionaryData} />
+          </>
+        )}
+      </ScrollArea>
+      <ActionButtons
+        textToCopy={text}
+        onSpeech={handleSpeech}
+        isSpeechDisabled={isLoading || text.length === 0}
+        isCopyDisabled={isLoading || text.length === 0}
+      />
+    </div>
+    // </Draggable> // Comment out Draggable again
   );
 
   return createPortal(resultContent, document.body);
