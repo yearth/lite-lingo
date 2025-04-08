@@ -1,23 +1,22 @@
-import { SelectionBubbleManager } from "../components/selection-bubble.tsx";
-import { TranslationResultManager } from "../components/translation-result"; // Updated import path
-import {
-  getTextContext,
-  isEditableElement,
-  isInShadowDOM,
-} from "../utils/text-selection";
-// import { streamTranslate } from "../utils/translation-service"; // Removed: Use messaging instead
+import { SelectionBubbleManager } from "../components/selection-bubble";
+import { TranslationResultManager } from "../components/translation-result";
 import {
   type BackgroundRequestMessage,
   type BackgroundResponseMessage,
   type ContentScriptStreamMessage,
   isStreamCompleteMessage,
   isStreamErrorMessage,
-  isStreamEventMessage, // Ensure this is imported
+  isStreamEventMessage,
   MSG_TYPE_MUTATION_REQUEST_TTS,
   MSG_TYPE_MUTATION_TRANSLATE_STREAM,
   type RequestTtsPayload,
   type TranslateStreamPayload,
 } from "../types/messaging";
+import {
+  getTextContext,
+  isEditableElement,
+  isInShadowDOM,
+} from "../utils/text-selection";
 
 export default defineContentScript({
   matches: [
@@ -163,10 +162,6 @@ export default defineContentScript({
         // }
 
         console.log("[Lite Lingo] Received message:", message);
-        console.log(
-          "[Lite Lingo] Received message isStreamEventMessage:",
-          isStreamEventMessage(message)
-        );
 
         if (isStreamEventMessage(message)) {
           const streamEvent = message.payload; // No need for assertion if type guard is correct
