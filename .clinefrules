@@ -26,6 +26,16 @@
     - 禁止：**禁止**手动创建组件文件或复制代码。
     - 要求：**必须**立即报告所需组件名称，并提示“需使用 `npx shadcn-ui@latest add [component-name]` 安装”。
   </dependency_management>
+  <git_commit_messages>
+    - 规则：Git Commit 消息规范
+    - 描述：提交代码时，commit 消息需要遵循 Conventional Commits 规范。
+    - 格式：`<type>(<scope>): <subject>`
+    - 示例：
+      ```
+      refactor(translation-result): Separate component and manager into different files
+      ```
+    - 常用 type: `feat` (新功能), `fix` (修复 bug), `docs` (文档), `style` (格式), `refactor` (重构), `test` (测试), `chore` (构建/工具)
+  </git_commit_messages>
 </workflow_rules>
 
 <coding_style>

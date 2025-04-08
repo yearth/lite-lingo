@@ -1,2 +1,2 @@
-export * from "./TranslationResult";
-export * from "./TranslationResultManager";
+export * from "./translation-result";
+export * from "./translation-result-manager";

@@ -4,7 +4,10 @@ import {
   DictionaryDefinition,
   DictionaryExample,
 } from "../../types/dictionary"; // Relative path from new location
-import { TranslationResult, TranslationResultProps } from "./TranslationResult"; // Import the component and its props type
+import {
+  TranslationResult,
+  TranslationResultProps,
+} from "./translation-result"; // Import the component and its props type
 
 /**
  * 翻译结果管理器

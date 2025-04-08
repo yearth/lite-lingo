@@ -2,10 +2,10 @@ import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingPosition } from "../../hooks/useFloatingPosition"; // Import hook
 import { DictionaryData } from "../../types/dictionary"; // Corrected import path
-import { ActionButtons } from "./ActionButtons"; // Corrected import path
-import { DictionaryDisplay } from "./DictionaryDisplay"; // Corrected import path
-import { ResultHeader } from "./ResultHeader"; // Corrected import path
-import { TextSection } from "./TextSection"; // Corrected import path
+import { ActionButtons } from "./action-buttons"; // Corrected import path
+import { DictionaryDisplay } from "./dictionary-display"; // Corrected import path
+import { ResultHeader } from "./result-header"; // Corrected import path
+import { TextSection } from "./text-section"; // Corrected import path
 
 // Export the props interface
 export interface TranslationResultProps {
