@@ -1,5 +1,5 @@
 import { SelectionBubbleManager } from "../components/selection-bubble.tsx";
-import { TranslationResultManager } from "../components/translation-result.tsx";
+import { TranslationResultManager } from "../components/translation-result"; // Updated import path
 import {
   getTextContext,
   isEditableElement,
