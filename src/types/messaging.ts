@@ -7,10 +7,16 @@ export const MSG_TYPE_MUTATION_REQUEST_TTS = "MUTATION_REQUEST_TTS";
 export const MSG_TYPE_MUTATION_TRANSLATE_STREAM = "MUTATION_TRANSLATE_STREAM";
 
 // Background -> Content Script (Stream updates via chrome.tabs.sendMessage)
-// export const MSG_TYPE_STREAM_CHUNK = "STREAM_CHUNK"; // Superseded by STREAM_EVENT
-export const MSG_TYPE_STREAM_EVENT = "STREAM_EVENT"; // New type for structured events
-export const MSG_TYPE_STREAM_ERROR = "STREAM_ERROR"; // For connection or top-level API errors
-export const MSG_TYPE_STREAM_COMPLETE = "STREAM_COMPLETE"; // Sent when 'done' event is received
+// V1 Types
+export const MSG_TYPE_STREAM_EVENT = "STREAM_EVENT"; // V1: Contains structured StreamEventPayload
+export const MSG_TYPE_STREAM_ERROR = "STREAM_ERROR"; // Common: For connection or top-level API errors
+export const MSG_TYPE_STREAM_COMPLETE = "STREAM_COMPLETE"; // V1: Sent when 'done' event is received
+// V2 Types
+export const MSG_TYPE_ANALYSIS_INFO_RECEIVED = "ANALYSIS_INFO_RECEIVED"; // V2: Contains AnalysisInfoPayload
+export const MSG_TYPE_SECTION_START = "SECTION_START"; // V2: New type for section start
+export const MSG_TYPE_TEXT_CHUNK_RECEIVED = "TEXT_CHUNK_RECEIVED"; // V2: Contains TextChunkPayload
+export const MSG_TYPE_SECTION_END = "SECTION_END"; // V2: New type for section end
+export const MSG_TYPE_STREAM_DONE_V2 = "STREAM_DONE_V2"; // V2: Explicit done signal
 
 // --- 消息结构 ---
 
@@ -28,12 +34,19 @@ export interface BackgroundResponseMessage<T = any> {
 }
 
 // Background -> Content Script (via chrome.tabs.sendMessage for stream updates)
-// Represents messages sent from background *during* the stream
+// Represents messages sent from background *during* the stream (V1 or V2)
 export interface ContentScriptStreamMessage<P = any> {
-  type:
-    | typeof MSG_TYPE_STREAM_EVENT // Contains StreamEventPayload
-    | typeof MSG_TYPE_STREAM_ERROR // Contains StreamErrorPayload
-    | typeof MSG_TYPE_STREAM_COMPLETE; // Contains void/null or status info
+  type: // V1 Types
+  | typeof MSG_TYPE_STREAM_EVENT
+    | typeof MSG_TYPE_STREAM_COMPLETE
+    // V2 Types
+    | typeof MSG_TYPE_ANALYSIS_INFO_RECEIVED
+    | typeof MSG_TYPE_SECTION_START // Add new type
+    | typeof MSG_TYPE_TEXT_CHUNK_RECEIVED
+    | typeof MSG_TYPE_SECTION_END // Add new type
+    | typeof MSG_TYPE_STREAM_DONE_V2
+    // Common Types
+    | typeof MSG_TYPE_STREAM_ERROR;
   payload: P;
 }
 
@@ -52,7 +65,25 @@ export interface StreamEventPayload<P = any> {
   payload: P;
 }
 
-// --- 具体 Payload 接口 ---
+// --- V2 Specific Payloads ---
+
+// Payload for MSG_TYPE_ANALYSIS_INFO_RECEIVED (Mirrors backend structure)
+export interface AnalysisInfoPayload {
+  inputType: "word_or_phrase" | "sentence" | "fragment";
+  sourceText: string;
+}
+
+// Payload for MSG_TYPE_TEXT_CHUNK_RECEIVED
+export interface TextChunkPayload {
+  text: string;
+}
+
+// Payload for MSG_TYPE_SECTION_START and MSG_TYPE_SECTION_END
+export interface SectionBoundaryPayload {
+  section: "EXPLANATION" | "CONTEXT_EXPLANATION" | "DICTIONARY" | string; // Allow known sections + string for flexibility
+}
+
+// --- V1 & Common Payload 接口 ---
 
 // 获取单词本列表 (无特定 payload)
 
@@ -145,13 +176,59 @@ export function isStreamErrorMessage(
   );
 }
 
-export function isStreamCompleteMessage(
+// --- V2 Type Guards ---
+
+export function isAnalysisInfoMessage(
   msg: any
-): msg is ContentScriptStreamMessage<StreamCompletePayload> {
-  // Check payload status for completeness
+): msg is ContentScriptStreamMessage<AnalysisInfoPayload> {
   return (
     msg &&
-    msg.type === MSG_TYPE_STREAM_COMPLETE &&
-    typeof msg.payload?.status === "string"
+    msg.type === MSG_TYPE_ANALYSIS_INFO_RECEIVED &&
+    typeof msg.payload?.inputType === "string" &&
+    typeof msg.payload?.sourceText === "string"
+  );
+}
+
+export function isTextChunkMessage(
+  msg: any
+): msg is ContentScriptStreamMessage<TextChunkPayload> {
+  return (
+    msg &&
+    msg.type === MSG_TYPE_TEXT_CHUNK_RECEIVED &&
+    typeof msg.payload?.text === "string"
+  );
+}
+
+// Type guard for V2 done message
+export function isStreamDoneMessageV2(
+  msg: any
+): msg is ContentScriptStreamMessage<StreamCompletePayload> {
+  // Reusing StreamCompletePayload for V2 done event
+  return (
+    msg &&
+    msg.type === MSG_TYPE_STREAM_DONE_V2 &&
+    typeof msg.payload?.status === "string" // Check for status property
+  );
+}
+
+// Type guard for section start message
+export function isSectionStartMessage(
+  msg: any
+): msg is ContentScriptStreamMessage<SectionBoundaryPayload> {
+  return (
+    msg &&
+    msg.type === MSG_TYPE_SECTION_START &&
+    typeof msg.payload?.section === "string"
+  );
+}
+
+// Type guard for section end message
+export function isSectionEndMessage(
+  msg: any
+): msg is ContentScriptStreamMessage<SectionBoundaryPayload> {
+  return (
+    msg &&
+    msg.type === MSG_TYPE_SECTION_END &&
+    typeof msg.payload?.section === "string"
   );
 }

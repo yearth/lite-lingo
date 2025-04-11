@@ -1,13 +1,8 @@
+import { AnalysisInfoPayload } from "@/types/messaging"; // Import V2 type
 import * as ReactDOM from "react-dom/client";
-import {
-  DictionaryData,
-  DictionaryDefinition,
-  DictionaryExample,
-} from "../../types/dictionary"; // Relative path from new location
-import {
-  TranslationResult,
-  TranslationResultProps,
-} from "./translation-result"; // Import the component and its props type
+// Dictionary types are now primarily used within TranslationState
+import { TranslationResult } from "./translation-result"; // Import the component and its props type
+import { TranslationState } from "./translation-state"; // Import the new state manager
 
 /**
  * 翻译结果管理器
@@ -17,21 +12,22 @@ export class TranslationResultManager {
   private container: HTMLDivElement | null = null;
   private root: ReactDOM.Root | null = null; // Use specific type ReactDOM.Root
   private isInitialized: boolean = false;
+  private stateManager: TranslationState; // Instance of the state manager
 
-  // Store the props needed by TranslationResult component
-  // Update position type to accept Range or null for positioning relative to selection
-  private currentProps: Omit<TranslationResultProps, "onClose" | "position"> & {
-    position: Range | null; // Changed from { x: number; y: number }
-  } = {
-    text: "",
-    originalText: "",
-    position: null, // Initialize as null
-    isVisible: false,
-    isLoading: false,
-    contextExplanation: null,
-    dictionaryData: null,
-    onSpeech: undefined,
-  };
+  // UI-specific state managed directly by the Manager
+  private isVisible: boolean = false;
+  private position: Range | null = null;
+
+  constructor() {
+    this.stateManager = new TranslationState();
+    // Subscribe to state changes to trigger re-renders
+    this.stateManager.setOnChange(() => {
+      // Only render if the component is currently visible
+      if (this.isVisible) {
+        this.renderComponent();
+      }
+    });
+  }
 
   public init(): void {
     if (this.isInitialized) {
@@ -47,6 +43,8 @@ export class TranslationResultManager {
     this.isInitialized = true;
   }
 
+  // --- Public Methods ---
+
   // Update show method to accept Range for positioning
   public show(
     text: string,
@@ -55,126 +53,50 @@ export class TranslationResultManager {
     isLoading: boolean = false,
     onSpeech?: (text: string) => void
   ): void {
-    this.currentProps = {
-      ...this.currentProps,
-      text: text,
-      originalText: originalText,
-      position: position,
-      isVisible: true,
-      isLoading: isLoading,
-      contextExplanation: null,
-      dictionaryData: null,
-      onSpeech: onSpeech,
-    };
-    this.renderComponent();
-  }
-
-  public update(text: string, isLoading: boolean = false): void {
-    if (!this.isInitialized || !this.currentProps.isVisible) return;
-    console.log("[Lite Lingo] Updating main translation text", {
-      text,
-      isLoading,
-    });
-    this.currentProps = { ...this.currentProps, text, isLoading };
-    this.renderComponent();
-  }
-
-  public updateContextExplanation(explanation: string): void {
-    if (!this.isInitialized || !this.currentProps.isVisible) return;
-    console.log("[Lite Lingo] Updating context explanation", { explanation });
-    this.currentProps = {
-      ...this.currentProps,
-      contextExplanation: explanation,
-      isLoading: true,
-    };
-    this.renderComponent();
-  }
-
-  public startDictionary(data: DictionaryData): void {
-    if (!this.isInitialized || !this.currentProps.isVisible) return;
-    console.log("[Lite Lingo] Starting dictionary", data);
-    this.currentProps = {
-      ...this.currentProps,
-      dictionaryData: { ...data, definitions: [] },
-      isLoading: true,
-    };
-    this.renderComponent();
-  }
-
-  public addDefinition(
-    definitionData: Omit<DictionaryDefinition, "examples">
-  ): void {
-    if (!this.isInitialized || !this.currentProps.dictionaryData) {
-      console.warn(
-        "[Lite Lingo] Cannot add definition: No active dictionary or not initialized."
-      );
-      return;
+    // Reset data state via state manager (reset clears originalText too)
+    this.stateManager.reset();
+    // Set initial data if provided
+    // Don't call setAnalysisInfo here as inputType is missing.
+    // originalText will be set via the public setAnalysisInfo method when available.
+    // For now, if we need originalText immediately, we might need to pass it to reset or updateState directly.
+    // Let's assume originalText is primarily set via setAnalysisInfo externally.
+    // We still need to set the initial translation text if provided.
+    if (text) {
+      this.stateManager.updateSection("translationResult", text); // Set initial translation text
     }
-    console.log("[Lite Lingo] Adding definition", definitionData);
-    if (!this.currentProps.dictionaryData.definitions) {
-      this.currentProps.dictionaryData.definitions = [];
-    }
-    this.currentProps.dictionaryData.definitions.push({
-      ...definitionData,
-      examples: [],
-    });
-    this.renderComponent();
-  }
+    // We might need to explicitly set originalText if it's needed before setAnalysisInfo is called.
+    this.stateManager.setOriginalText(originalText); // Use the new public method
 
-  public addExample(exampleData: DictionaryExample): void {
-    if (
-      !this.isInitialized ||
-      !this.currentProps.dictionaryData ||
-      this.currentProps.dictionaryData.definitions.length === 0
-    ) {
-      console.warn(
-        "[Lite Lingo] Cannot add example: No active definition or not initialized."
-      );
-      return;
-    }
-    console.log("[Lite Lingo] Adding example", exampleData);
-    const lastDefinition =
-      this.currentProps.dictionaryData.definitions[
-        this.currentProps.dictionaryData.definitions.length - 1
-      ];
-    if (!lastDefinition.examples) {
-      lastDefinition.examples = [];
-    }
-    lastDefinition.examples.push(exampleData);
-    this.renderComponent();
-  }
+    this.stateManager.setLoading(isLoading);
+    this.stateManager.setSpeechHandler(onSpeech);
 
-  public endDictionary(): void {
-    if (!this.isInitialized) return;
-    console.log("[Lite Lingo] Ending dictionary section");
+    // Update Manager's UI state
+    this.position = position;
+    this.isVisible = true;
+
+    // Trigger initial render
     this.renderComponent();
   }
 
   public hide(): void {
-    if (!this.isInitialized) return;
+    if (!this.isInitialized || !this.isVisible) return; // Check manager's isVisible
     console.log("[Lite Lingo] Hiding translation result");
-    if (this.currentProps.isVisible) {
-      this.currentProps = {
-        ...this.currentProps,
-        text: "",
-        originalText: "",
-        isVisible: false,
-        isLoading: false,
-        position: null, // Reset position on hide
-        contextExplanation: null,
-        dictionaryData: null,
-        onSpeech: undefined,
-      };
-      this.renderComponent();
-    }
+
+    // Update Manager's UI state
+    this.isVisible = false;
+    this.position = null;
+
+    // Reset data state via state manager
+    this.stateManager.reset(); // Reset data for next time
+
+    // Render one last time to ensure component is unmounted/hidden by React
+    this.renderComponent();
   }
 
+  // Delegate setLoading to state manager
   public setLoading(isLoading: boolean): void {
-    if (!this.isInitialized || !this.currentProps.isVisible) return;
-    console.log("[Lite Lingo] Setting loading state", { isLoading });
-    if (this.currentProps.isLoading === isLoading) return;
-    this.currentProps = { ...this.currentProps, isLoading };
-    this.renderComponent();
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setLoading(isLoading);
   }
 
   private renderComponent(): void {
@@ -184,24 +106,110 @@ export class TranslationResultManager {
       );
       return;
     }
-    console.log(
-      "[Lite Lingo] Rendering TranslationResult with props:",
-      this.currentProps
-    );
+
+    // Get data state from the state manager
+    const dataState = this.stateManager.getState();
+
+    // console.log( // Reduce log verbosity
+    //   "[Lite Lingo] Rendering TranslationResult with state:",
+    //   { ...dataState, isVisible: this.isVisible, position: this.position }
+    // );
+
+    // Combine data state with Manager's UI state for rendering
     this.root.render(
       <TranslationResult
-        text={this.currentProps.text}
-        originalText={this.currentProps.originalText}
-        position={this.currentProps.position}
-        isVisible={this.currentProps.isVisible}
-        isLoading={this.currentProps.isLoading}
-        contextExplanation={this.currentProps.contextExplanation}
-        dictionaryData={this.currentProps.dictionaryData}
+        {...dataState} // Spread data state (text, originalText, explanation, etc.)
+        position={this.position} // Pass position from Manager
+        isVisible={this.isVisible} // Pass visibility from Manager
+        // isLoading is now part of dataState
         onClose={() => this.hide()} // Pass internal hide method
-        onSpeech={this.currentProps.onSpeech}
+        // onSpeech is now part of dataState
       />
     );
   }
+
+  // --- V2 Streaming Methods (Delegated) ---
+
+  // No public reset needed, handled internally by show/hide
+
+  // Delegate setAnalysisInfo to state manager
+  public setAnalysisInfo(info: AnalysisInfoPayload): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setAnalysisInfo(info);
+  }
+
+  // Delegate updateSection to state manager
+  public updateSection(sectionName: string, textChunk: string): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.updateSection(sectionName, textChunk);
+  }
+
+  // Delegate showError to state manager, but ensure visibility
+  public showError(errorMessage: string): void {
+    if (!this.isInitialized) return; // Can show error even if not visible yet
+
+    // Ensure the UI becomes visible to show the error
+    this.isVisible = true;
+    // Position might be null if error occurs before show, handle gracefully in TranslationResult if needed
+
+    this.stateManager.showError(errorMessage);
+    // stateManager's onChange will trigger renderComponent if needed
+  }
+
+  // --- Methods to set specific state parts (delegated) ---
+  public setContext(context: { word_translation?: string; explanation?: string } | null): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setContext(context);
+  }
+
+  public setDictionary(dictionary: any | null): void { // Use 'any' for now, refine if DictionaryData type is available
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setDictionary(dictionary);
+  }
+
+  public setTranslationResult(text: string): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setTranslationResult(text);
+  }
+
+  public setFragmentError(errorText: string): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setFragmentError(errorText);
+  }
+
+  // --- Methods to append text chunks (delegated) ---
+  public appendText(chunk: string): void {
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.appendText(chunk);
+  }
+
+  public appendContextExplanation(chunk: string): void {
+     if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.appendContextExplanation(chunk);
+  }
+
+  public appendDictionaryDefinition(chunk: string): void {
+     if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.appendDictionaryDefinition(chunk);
+  }
+
+  public appendDictionaryExample(chunk: string): void {
+     if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.appendDictionaryExample(chunk);
+  }
+
+   // Methods to reset streamed fields at the beginning
+   public setDictionaryDefinition(text: string): void {
+     if (!this.isInitialized || !this.isVisible) return;
+     this.stateManager.setDictionaryDefinition(text);
+   }
+
+   public setDictionaryExample(text: string): void {
+      if (!this.isInitialized || !this.isVisible) return;
+     this.stateManager.setDictionaryExample(text);
+   }
+
+  // --- End V2 Streaming Methods ---
 
   public getContainer(): HTMLElement | null {
     return this.container;

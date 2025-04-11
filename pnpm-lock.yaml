@@ -63,9 +63,15 @@ importers:
       '@types/chrome':
         specifier: ^0.0.313
         version: 0.0.313
+      '@types/clarinet':
+        specifier: ^0.12.3
+        version: 0.12.3
       '@types/node':
         specifier: ^22.14.0
         version: 22.14.0
+      '@types/oboe':
+        specifier: ^2.1.4
+        version: 2.1.4
       '@types/react':
         specifier: ^19.0.1
         version: 19.1.0
@@ -731,6 +737,9 @@ packages:
   '@types/chrome@0.0.313':
     resolution: {integrity: sha512-9R5T7gTaYZhkxlu+Ho4wk9FL+y/werWQY2yjGWSqCuiTsqS7nL/BE5UMTP6rU7J+oIG2FRKqrEycHhJATeltVA==}
 
+  '@types/clarinet@0.12.3':
+    resolution: {integrity: sha512-7Fwiv6RNH6JW86U7Vvae7sFHrNmNWxMIx9iAH49F+5d9Kizew5GMYz6rixupn3PK4t+oqP7GZMqOQR77QbcrAQ==}
+
   '@types/estree@1.0.7':
     resolution: {integrity: sha512-w28IoSUCJpidD/TGviZwwMJckNESJZXFu7NBZ5YJ4mEUnNraUn9Pm8HSZm/jDF1pDWYKspWE7oVphigUPRakIQ==}
 
@@ -754,6 +763,9 @@ packages:
 
   '@types/node@22.14.0':
     resolution: {integrity: sha512-Kmpl+z84ILoG+3T/zQFyAJsU6EPTmOCj8/2+83fSN6djd6I4o7uOuGIH6vq3PrjY5BGitSbFuMN18j3iknubbA==}
+
+  '@types/oboe@2.1.4':
+    resolution: {integrity: sha512-bXt4BXSQy0N/buSIak1o0TjYAk2SAeK1aZV9xKcb+xVGWYP8NcMOFy2T7Um3kIvEcQJzrdgJ8R6fpbRcp/LEww==}
 
   '@types/react-dom@19.1.1':
     resolution: {integrity: sha512-jFf/woGTVTjUJsl2O7hcopJ1r0upqoq/vIOoCj0yLh3RIXxWcljlpuZ+vEBRXsymD1jhfeJrlyTy/S1UW+4y1w==}
@@ -3247,6 +3259,10 @@ snapshots:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.16
 
+  '@types/clarinet@0.12.3':
+    dependencies:
+      '@types/node': 22.14.0
+
   '@types/estree@1.0.7': {}
 
   '@types/filesystem@0.0.36':
@@ -3266,6 +3282,10 @@ snapshots:
   '@types/node@22.14.0':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/oboe@2.1.4':
+    dependencies:
+      '@types/node': 22.14.0
 
   '@types/react-dom@19.1.1(@types/react@19.1.0)':
     dependencies:

@@ -18,13 +18,16 @@ import { ResultHeader } from "./result-header";
 import { TextSection } from "./text-section";
 
 export interface TranslationResultProps {
-  text: string;
+  text: string; // Main translation result
   originalText: string;
   position: Range | null; // Changed type to accept Range or null
   isVisible: boolean;
   isLoading: boolean;
+  explanation?: string | null;
   contextExplanation?: string | null;
   dictionaryData?: DictionaryData | null;
+  dictionaryDefinition?: string | null; // Add new prop
+  dictionaryExample?: string | null; // Add new prop
   onClose: () => void;
   onSpeech?: (text: string) => void;
 }
@@ -37,8 +40,11 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   isLoading,
   onClose,
   onSpeech,
+  explanation,
   contextExplanation,
   dictionaryData,
+  dictionaryDefinition, // Destructure new prop
+  dictionaryExample, // Destructure new prop
 }) => {
   // Floating UI setup
   const referenceElement = useMemo((): VirtualElement | null => {
@@ -143,17 +149,38 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
       }}
     >
       <ResultHeader onClose={onClose} />
+      {/* Main Translation - Display directly with bold styling */}
+      <div className="text-sm font-bold mb-2 break-words text-gray-800">
+        {text || (isLoading && "...")} {/* Show text or loading indicator */}
+      </div>
       <ScrollArea className="h-48 pr-3" onWheel={(e) => e.stopPropagation()}>
+        {/* Explanation Section */}
+        {explanation && (
+          <>
+            <Separator />
+            <TextSection title="Explanation" text={explanation} />
+          </>
+        )}
+        {/* Context Explanation Section */}
         {contextExplanation && (
           <>
             <Separator />
-            <TextSection text={contextExplanation} />
+            <TextSection
+              title="Context Explanation"
+              text={contextExplanation}
+            />
           </>
         )}
-        {dictionaryData && (
+        {/* Dictionary Section - Render if any dictionary info is available */}
+        {(dictionaryData || dictionaryDefinition || dictionaryExample) && (
           <>
             <Separator />
-            <DictionaryDisplay data={dictionaryData} />
+            {/* Pass dictionary data and streamed text to its display component, providing null defaults */}
+            <DictionaryDisplay
+              data={dictionaryData ?? null}
+              definitionText={dictionaryDefinition ?? null}
+              exampleText={dictionaryExample ?? null}
+            />
           </>
         )}
       </ScrollArea>

@@ -61,19 +61,19 @@ export function handleTranslate(
         "[Lite Lingo] 发送翻译请求失败:",
         chrome.runtime.lastError.message
       );
-      translationResult.update(
-        `启动翻译失败: ${chrome.runtime.lastError.message}`,
-        false
-      );
+      // translationResult.update(
+      //   `启动翻译失败: ${chrome.runtime.lastError.message}`,
+      //   false
+      // );
       return;
     }
 
     if (!response?.success) {
       console.error("[Lite Lingo] 启动翻译请求失败:", response?.error);
-      translationResult.update(
-        `启动翻译失败: ${response?.error || "未知错误"}`,
-        false
-      );
+      // translationResult.update(
+      //   `启动翻译失败: ${response?.error || "未知错误"}`,
+      //   false
+      // );
     } else {
       console.log("[Lite Lingo] 翻译流已成功启动");
       // 等待 onMessage 接收数据块

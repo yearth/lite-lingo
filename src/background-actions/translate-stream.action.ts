@@ -1,17 +1,16 @@
 import {
   BackgroundResponseMessage,
-  ContentScriptStreamMessage,
-  MSG_TYPE_STREAM_COMPLETE,
+  ContentScriptStreamMessage, // Add import
   MSG_TYPE_STREAM_ERROR,
-  MSG_TYPE_STREAM_EVENT,
-  StreamCompletePayload,
+  MSG_TYPE_TEXT_CHUNK_RECEIVED, // Add import
   StreamErrorPayload,
-  StreamEventPayload,
-  TranslateStreamPayload,
+  TextChunkPayload,
+  TranslateStreamPayload
 } from "../types/messaging";
-import apiClient, { SseCallbacks } from "../utils/api-client";
+// Import StreamEventPayload correctly now
+import apiClient, { ApiResponse, SseCallbacks, StreamEventPayload } from "../utils/api-client";
 
-// Define a simple success data type for the initial response, if needed
+// Define a simple success data type for the initial response
 interface StreamInitiatedData {
   message: string; // Or leave empty if no specific data needed
 }
@@ -42,11 +41,13 @@ export async function handleTranslateStream(
 
   // Define callbacks for apiClient.sse
   const callbacks: SseCallbacks = {
-    onMessage: (apiResponse) => {
+    // Use the imported StreamEventPayload type, but acknowledge the actual payload structure might differ
+    // We'll access properties carefully or use type assertions if needed.
+    onMessage: (apiResponse: ApiResponse<StreamEventPayload<any>>) => { // Use StreamEventPayload
       // Check for API-level errors first (non-"0" code)
       if (apiResponse.code !== "0" && apiResponse.code !== 0) {
         console.error(
-          `[Action: TranslateStream] SSE stream error for tab ${tabId}: [${apiResponse.code}] ${apiResponse.message}`
+          `[Action: TranslateStream V2] SSE stream error for tab ${tabId}: [${apiResponse.code}] ${apiResponse.message}`
         );
         const errorMessage: ContentScriptStreamMessage<StreamErrorPayload> = {
           type: MSG_TYPE_STREAM_ERROR,
@@ -60,82 +61,43 @@ export async function handleTranslateStream(
           .sendMessage(tabId, errorMessage)
           .catch((err) =>
             console.warn(
-              `[Action: TranslateStream] Failed to send stream error to tab ${tabId}: ${err.message}`
+              `[Action: TranslateStream V2] Failed to send stream error to tab ${tabId}: ${err.message}`
             )
           );
         return; // Stop processing this message
       }
 
-      // Process successful data
-      if (apiResponse.data) {
-        const streamEvent = apiResponse.data; // Type is StreamEventPayload | null
+      // Process successful data: Extract the text chunk and forward it.
+      // Accessing apiResponse.data.payload.text based on StreamEventPayload structure
+      // and assuming the backend sends text within the 'payload' field of StreamEventPayload.
+      // If backend sends { type: 'text', text: '...' } directly in apiResponse.data, adjust access.
+      // Let's assume the structure from backend is actually fitting StreamEventPayload:
+      // { type: 'text_chunk', payload: { text: '...' } } -> This seems unlikely based on previous backend code.
+      // Let's revert to accessing apiResponse.data.text directly, assuming apiResponse.data is the object { type, text, model }
+      if (apiResponse.data && typeof (apiResponse.data as any).text === 'string') {
+        const textChunk = (apiResponse.data as any).text; // Cast to any to access .text
 
-        // Handle 'done' event
-        if (streamEvent.type === "done") {
-          console.log(
-            `[Action: TranslateStream] SSE stream finished for tab ${tabId}:`,
-            streamEvent.payload?.status
-          );
-          const completeMessage: ContentScriptStreamMessage<StreamCompletePayload> =
-            {
-              type: MSG_TYPE_STREAM_COMPLETE,
-              payload: { status: streamEvent.payload?.status ?? "failed" },
-            };
-          chrome.tabs
-            .sendMessage(tabId, completeMessage)
-            .catch((err) =>
-              console.warn(
-                `[Action: TranslateStream] Failed to send completion to tab ${tabId}: ${err.message}`
-              )
-            );
-        }
-        // Handle error events within the stream data
-        else if (
-          ["error", "fragment_error", "parsing_error"].includes(
-            streamEvent.type
-          )
-        ) {
-          console.error(
-            `[Action: TranslateStream] SSE stream reported error (${streamEvent.type}) for tab ${tabId}:`,
-            streamEvent.payload?.message
-          );
-          const streamErrorMessage: ContentScriptStreamMessage<StreamErrorPayload> =
-            {
-              type: MSG_TYPE_STREAM_ERROR,
-              payload: {
-                error:
-                  streamEvent.payload?.message ||
-                  `Unknown stream error (${streamEvent.type})`,
-              },
-            };
-          chrome.tabs
-            .sendMessage(tabId, streamErrorMessage)
-            .catch((err) =>
-              console.warn(
-                `[Action: TranslateStream] Failed to send stream error event to tab ${tabId}: ${err.message}`
-              )
-            );
-        }
-        // Handle regular stream events
-        else {
-          const eventMessage: ContentScriptStreamMessage<StreamEventPayload> = {
-            type: MSG_TYPE_STREAM_EVENT,
-            payload: streamEvent,
-          };
+        const chunkMessage: ContentScriptStreamMessage<TextChunkPayload> = {
+          type: MSG_TYPE_TEXT_CHUNK_RECEIVED,
+          payload: { text: textChunk },
+        };
 
-          console.log(
-            `[Action: TranslateStream] Sending stream event (${streamEvent.type}) to tab ${tabId}:`,
-            streamEvent
+        console.log(`[Action: TranslateStream] Forwarding text chunk to tab ${tabId}: "${textChunk.substring(0, 30)}..."`); // Reduce verbosity
+        
+        chrome.tabs.sendMessage(tabId, chunkMessage)
+          .catch((err) =>
+            console.warn(
+              `[Action: TranslateStream] Failed to send text chunk to tab ${tabId}: ${err.message}`
+            )
           );
-
-          chrome.tabs
-            .sendMessage(tabId, eventMessage)
-            .catch((err) =>
-              console.warn(
-                `[Action: TranslateStream] Failed to send stream event (${streamEvent.type}) to tab ${tabId}: ${err.message}`
-              )
-            );
-        }
+      } else if (apiResponse.data) {
+          // Handle potential errors reported within the stream data itself if backend sends them
+          // Example: if (apiResponse.data.type === 'error') { ... send MSG_TYPE_STREAM_ERROR ... }
+          // For now, just log unexpected data structures
+          console.warn(
+              `[Action: TranslateStream] Received unexpected data structure in stream for tab ${tabId}:`,
+              apiResponse.data // Log the whole data part
+          );
       }
     },
     onError: (error: Error) => {
@@ -188,7 +150,7 @@ export async function handleTranslateStream(
 
   // Call apiClient.sse and handle initial response
   try {
-    await apiClient.sse("/translate/stream", requestOptions, callbacks);
+    await apiClient.sse("/v2/translate/stream", requestOptions, callbacks);
     console.log(
       `[Action: TranslateStream] apiClient.sse initiated successfully for tab ${tabId}.`
     );

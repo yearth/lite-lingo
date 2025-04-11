@@ -3,7 +3,7 @@
 /**
  * SSE 事件 data 字段的结构 (根据 API 文档)
  */
-interface StreamEventPayload<P = any> {
+export interface StreamEventPayload<P = any> { // Add export
   /**
    * 事件类型: 'text_chunk', 'error', 'done', etc.
    */
@@ -17,7 +17,7 @@ interface StreamEventPayload<P = any> {
 /**
  * 后端 API 响应的基础结构 (保持不变)
  */
-interface ApiResponse<D = any> {
+export interface ApiResponse<D = any> {
   code: string | number; // Allow number for HTTP status codes in errors
   message: string;
   /** 业务数据负载 */
@@ -222,28 +222,37 @@ const _apiClientSSE = async (
         if (line.startsWith("data:")) {
           const jsonData = line.slice(5).trim(); // Get content after "data:"
           if (jsonData) {
-            console.log("[SSE Client] Received data:", jsonData); // Debug log
-            try {
-              const parsedData: ApiResponse<StreamEventPayload> =
-                JSON.parse(jsonData);
-              console.log("[SSE Client] Received message:", parsedData); // Debug log
-              callbacks.onMessage(parsedData);
-            } catch (parseError) {
-              console.error(
-                "[SSE Client] Error parsing SSE data JSON:",
-                parseError,
-                "Data:",
-                jsonData
-              );
-              // Decide if parsing error is fatal
-              callbacks.onError(
-                parseError instanceof Error
-                  ? parseError
-                  : new Error("Failed to parse SSE JSON data")
-              );
-              // Optionally break or continue based on error handling strategy
-            }
-          }
+            // --->>> 添加 [DONE] 检查 <<<---
+            if (jsonData === "[DONE]") {
+              console.log("[SSE Client] Received [DONE] marker.");
+              // 不需要调用 onMessage，循环将在下一次 read() 时因 done=true 而结束
+              // 或者如果需要立即触发 onClose，可以在这里 break 或直接调用 onClose
+              // break; // 退出 while 循环，让外层循环处理 done
+            } else {
+              // --->>> 只有在不是 [DONE] 时才解析 <<<---
+              console.log("[SSE Client] Received data:", jsonData); // Debug log
+              try {
+                const parsedData: ApiResponse<StreamEventPayload> =
+                  JSON.parse(jsonData);
+                console.log("[SSE Client] Received message:", parsedData); // Debug log
+                callbacks.onMessage(parsedData);
+              } catch (parseError: any) { // Add : any and ensure catch is inside else
+                console.error(
+                  "[SSE Client] Error parsing SSE data JSON:",
+                  parseError,
+                  "Data:",
+                  jsonData
+                );
+                // Decide if parsing error is fatal
+                callbacks.onError(
+                  parseError instanceof Error
+                    ? parseError
+                    : new Error("Failed to parse SSE JSON data")
+                );
+                // Optionally break or continue based on error handling strategy
+              }
+            } // End of else block (was missing before)
+          } // End of if(jsonData)
         } else if (line) {
           // Ignore comments (lines starting with ':') or empty lines, log others if needed
           // console.log("[SSE Client] Received non-data line:", line);
