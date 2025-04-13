@@ -4,9 +4,9 @@ import {
 } from "../../types/dictionary";
 
 interface DictionaryDisplayProps {
-  data: DictionaryData | null; // Allow null if data might not be fully available initially
-  definitionText: string | null;
-  exampleText: string | null;
+  data: DictionaryData | null; // Non-streamed parts (word, phonetic)
+  definitionTexts: string[] | null; // Array for streamed definitions
+  exampleTexts: string[] | null; // Array for streamed examples
 }
 
 // ExampleItem might not be needed if we stream example directly
@@ -32,12 +32,12 @@ interface DictionaryDisplayProps {
 
 export const DictionaryDisplay: React.FC<DictionaryDisplayProps> = ({
   data,
-  definitionText,
-  exampleText,
+  definitionTexts, // Use plural name for array prop
+  exampleTexts, // Use plural name for array prop
 }) => {
-  // Handle case where data might be null initially
-  if (!data && !definitionText && !exampleText) {
-    return null; // Don't render if nothing is available yet
+  // Handle case where no data is available yet
+  if (!data && (!definitionTexts || definitionTexts.length === 0)) {
+    return null;
   }
 
   // Extract non-streamed data safely using optional chaining
@@ -55,20 +55,21 @@ export const DictionaryDisplay: React.FC<DictionaryDisplayProps> = ({
         )}
         {translation && <span className="text-sm text-gray-600 ml-2">({translation})</span>}{" "}
       </div>
-      {/* Render streamed definition only if it has content */}
-      {definitionText && ( // Check if definitionText is truthy (not null, not empty string)
-        <div className="mb-1.5 ml-1">
-           {/* <div className="text-xs text-blue-600 font-medium">{pos}</div>{" "} Remove POS display for now */}
-           <div className="text-sm text-gray-700 ml-2">{definitionText}</div>{" "} {/* Render directly */}
-           {/* Render streamed example only if it has content */}
-           {exampleText && ( // Check if exampleText is truthy
-             <div className="text-xs text-gray-500 ml-4 mt-0.5">
-                 <div>例: {exampleText}</div>
-             </div>
-           )}
-        </div> // Correct closing div for mb-1.5 ml-1
-      )}
-      {/* Remove the loop based on data.definitions */}
+      {/* Render streamed definitions by mapping over the array */}
+      {definitionTexts && definitionTexts.length > 0 && definitionTexts.map((defText, index) => (
+          // TODO: Need a way to get the corresponding 'pos' if available (maybe from data.definitions[index]?)
+          // For now, just display the streamed text.
+          <div key={`def-${index}`} className="mb-1.5 ml-1">
+              {/* <div className="text-xs text-blue-600 font-medium">{data?.definitions?.[index]?.pos ?? '释义'}</div>{" "} */}
+              <div className="text-sm text-gray-700 ml-2">{defText || "..."}</div>{" "}
+              {/* Render corresponding streamed example if available */}
+              {exampleTexts && exampleTexts[index] && (
+                  <div className="text-xs text-gray-500 ml-4 mt-0.5">
+                      <div>例: {exampleTexts[index]}</div>
+                  </div>
+              )}
+          </div>
+      ))}
     </>
   );
 };

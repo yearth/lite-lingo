@@ -188,25 +188,26 @@ export class TranslationResultManager {
     this.stateManager.appendContextExplanation(chunk);
   }
 
-  public appendDictionaryDefinition(chunk: string): void {
+  // Update methods to accept and pass index
+  public appendDictionaryDefinition(index: number, chunk: string): void {
      if (!this.isInitialized || !this.isVisible) return;
-    this.stateManager.appendDictionaryDefinition(chunk);
+    this.stateManager.appendDictionaryDefinition(index, chunk);
   }
 
-  public appendDictionaryExample(chunk: string): void {
+  public appendDictionaryExample(index: number, chunk: string): void {
      if (!this.isInitialized || !this.isVisible) return;
-    this.stateManager.appendDictionaryExample(chunk);
+    this.stateManager.appendDictionaryExample(index, chunk);
   }
 
-   // Methods to reset streamed fields at the beginning
-   public setDictionaryDefinition(text: string): void {
+   // Methods to reset streamed fields at the beginning (Update to accept index and call correct method)
+   public setDictionaryDefinitionText(index: number, text: string): void { // Rename method to match state
      if (!this.isInitialized || !this.isVisible) return;
-     this.stateManager.setDictionaryDefinition(text);
+     this.stateManager.setDictionaryDefinitionText(index, text); // Call correct method
    }
 
-   public setDictionaryExample(text: string): void {
+   public setDictionaryExampleText(index: number, text: string): void { // Rename method to match state
       if (!this.isInitialized || !this.isVisible) return;
-     this.stateManager.setDictionaryExample(text);
+     this.stateManager.setDictionaryExampleText(index, text); // Call correct method
    }
 
   // --- End V2 Streaming Methods ---

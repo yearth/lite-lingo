@@ -26,8 +26,8 @@ export interface TranslationResultProps {
   explanation?: string | null;
   contextExplanation?: string | null;
   dictionaryData?: DictionaryData | null;
-  dictionaryDefinition?: string | null; // Add new prop
-  dictionaryExample?: string | null; // Add new prop
+  dictionaryDefinitions?: string[] | null; // Rename to plural
+  dictionaryExamples?: string[] | null; // Rename to plural
   onClose: () => void;
   onSpeech?: (text: string) => void;
 }
@@ -43,8 +43,8 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   explanation,
   contextExplanation,
   dictionaryData,
-  dictionaryDefinition, // Destructure new prop
-  dictionaryExample, // Destructure new prop
+  dictionaryDefinitions, // Destructure plural name
+  dictionaryExamples, // Destructure plural name
 }) => {
   // Floating UI setup
   const referenceElement = useMemo((): VirtualElement | null => {
@@ -172,14 +172,14 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
           </>
         )}
         {/* Dictionary Section - Render if any dictionary info is available */}
-        {(dictionaryData || dictionaryDefinition || dictionaryExample) && (
+        {(dictionaryData || dictionaryDefinitions || dictionaryExamples) && ( // Use correct plural names here
           <>
             <Separator />
-            {/* Pass dictionary data and streamed text to its display component, providing null defaults */}
+            {/* Pass dictionary data and streamed text arrays to its display component, providing null defaults */}
             <DictionaryDisplay
               data={dictionaryData ?? null}
-              definitionText={dictionaryDefinition ?? null}
-              exampleText={dictionaryExample ?? null}
+              definitionTexts={dictionaryDefinitions ?? null} // Pass plural prop
+              exampleTexts={dictionaryExamples ?? null} // Pass plural prop
             />
           </>
         )}

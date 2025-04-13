@@ -9,13 +9,13 @@ import { DictionaryData } from "../../types/dictionary";
 export interface ITranslationState {
   text: string;
   originalText: string;
-  explanation: string | null; // Might be deprecated if contextExplanation covers it
+  explanation: string | null; // TODO: Potentially remove if covered by contextExplanation
   contextExplanation: string | null; // Streamed
-  dictionaryData: DictionaryData | null; // Holds non-streamed parts like word, phonetic
-  dictionaryDefinition: string | null; // Streamed
-  dictionaryExample: string | null; // Streamed
+  dictionaryData: DictionaryData | null; // Holds non-streamed parts like word, phonetic, maybe pos?
+  dictionaryDefinitions: string[] | null; // Streamed definitions text array
+  dictionaryExamples: string[] | null; // Streamed examples text array
   isLoading: boolean;
-  onSpeech?: (text: string) => void; // Keep onSpeech if it's tied to data state
+  onSpeech?: (text: string) => void;
 }
 
 // Type for the callback function when state changes
@@ -32,8 +32,8 @@ export class TranslationState {
       explanation: null,
       contextExplanation: null,
       dictionaryData: null,
-      dictionaryDefinition: null, // Initialize new state
-      dictionaryExample: null, // Initialize new state
+      dictionaryDefinitions: null, // Initialize as null
+      dictionaryExamples: null, // Initialize as null
       isLoading: false,
       onSpeech: undefined,
       ...initialState,
@@ -72,10 +72,10 @@ export class TranslationState {
       explanation: null,
       contextExplanation: null,
       dictionaryData: null,
-      dictionaryDefinition: null, // Reset new state
-      dictionaryExample: null, // Reset new state
+      dictionaryDefinitions: null, // Reset to null
+      dictionaryExamples: null, // Reset to null
       isLoading: false,
-      // onSpeech: undefined, // Keep onSpeech? Usually set during 'show'
+      // onSpeech: undefined,
     });
   }
 
@@ -121,12 +121,20 @@ export class TranslationState {
   }
 
   // --- Methods to set specific parts of the state (non-streaming) ---
-   public setDictionaryDefinition(text: string): void {
-    this.updateState({ dictionaryDefinition: text });
+   public setDictionaryDefinitionText(index: number, text: string): void {
+     // Sets the complete text for a definition at a specific index
+     const definitions = [...(this.state.dictionaryDefinitions || [])];
+     while (definitions.length <= index) { definitions.push(""); } // Ensure array length
+     definitions[index] = text;
+     this.updateState({ dictionaryDefinitions: definitions });
   }
 
-  public setDictionaryExample(text: string): void {
-    this.updateState({ dictionaryExample: text });
+  public setDictionaryExampleText(index: number, text: string): void {
+     // Sets the complete text for an example at a specific index
+     const examples = [...(this.state.dictionaryExamples || [])];
+     while (examples.length <= index) { examples.push(""); } // Ensure array length
+     examples[index] = text;
+     this.updateState({ dictionaryExamples: examples });
   }
 
 
@@ -148,15 +156,28 @@ export class TranslationState {
     }
   }
 
-  public appendDictionaryDefinition(chunk: string): void {
-    this.updateState({ dictionaryDefinition: (this.state.dictionaryDefinition || "") + chunk });
+  // Updated append methods to handle arrays
+  public appendDictionaryDefinition(index: number, chunk: string): void {
+    const definitions = [...(this.state.dictionaryDefinitions || [])];
+    // Ensure the array is long enough
+    while (definitions.length <= index) {
+        definitions.push("");
+    }
+    definitions[index] = (definitions[index] || "") + chunk;
+    this.updateState({ dictionaryDefinitions: definitions }); // Update correct state property
      if (!this.state.isLoading) {
         this.setLoading(true);
     }
   }
 
-  public appendDictionaryExample(chunk: string): void {
-    this.updateState({ dictionaryExample: (this.state.dictionaryExample || "") + chunk });
+  public appendDictionaryExample(index: number, chunk: string): void {
+    const examples = [...(this.state.dictionaryExamples || [])];
+     // Ensure the array is long enough
+    while (examples.length <= index) {
+        examples.push("");
+    }
+    examples[index] = (examples[index] || "") + chunk;
+    this.updateState({ dictionaryExamples: examples }); // Update correct state property
      if (!this.state.isLoading) {
         this.setLoading(true);
     }

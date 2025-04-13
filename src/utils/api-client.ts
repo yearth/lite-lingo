@@ -211,6 +211,8 @@ const _apiClientSSE = async (
       }
 
       buffer += value;
+
+      console.log("[SSE Client] Processing buffer:", buffer); // Debug log
       let eolIndex; // End of line index
 
       // Process buffer line by line

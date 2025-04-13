@@ -4,6 +4,12 @@ import {
   ,
 
 
+
+
+
+
+
+
   type ContentScriptStreamMessage,
   isStreamDoneMessageV2,
   isStreamErrorMessage,
@@ -34,11 +40,11 @@ export function setupMessageHandler(
       onContextExplanationChar: (char: string) => {
         translationResult.appendContextExplanation(char);
       },
-      onDictionaryDefinitionChar: (char: string) => {
-        translationResult.appendDictionaryDefinition(char); // Call the new method
+      onDictionaryDefinitionChar: (index: number, char: string) => {
+        translationResult.appendDictionaryDefinition(index, char); // Pass index
       },
-      onDictionaryExampleChar: (char: string) => {
-        translationResult.appendDictionaryExample(char); // Call the new method
+      onDictionaryExampleChar: (index: number, char: string) => {
+        translationResult.appendDictionaryExample(index, char); // Pass index
       },
       onFragmentErrorChar: (char: string) => {
         // Fragment error might not need char-by-char streaming
@@ -64,6 +70,11 @@ export function setupMessageHandler(
       onDictionaryPhonetic: (text: string) => {
         console.log("[Lite Lingo Parser] Received complete Dictionary Phonetic:", text);
         // Rely on onComplete to set the whole dictionary object.
+      },
+      onDictionaryDefinitionPos: (index: number, pos: string) => {
+        console.log(`[Lite Lingo Parser] Received complete Dictionary Definition POS at index ${index}:`, pos);
+        // TODO: Update state/UI with the POS for the specific definition index if needed.
+        // This might require changes in TranslationState and DictionaryDisplay.
       },
 
       // --- General Callbacks ---
@@ -127,9 +138,12 @@ export function setupMessageHandler(
         translationResult.setLoading(true);
         // Reset UI fields that will be streamed
         translationResult.setTranslationResult("");
-        translationResult.setContext(null); // Pass null to reset context object
-        translationResult.setDictionaryDefinition(""); // Reset new field
-        translationResult.setDictionaryExample(""); // Reset new field
+        translationResult.setContext(null);
+        // Call the correct setters to reset/clear the arrays in the state
+        // Assuming index 0 is sufficient for resetting, or perhaps better to reset in TranslationState.reset()
+        // Let's keep the reset calls here for now, using index 0.
+        translationResult.setDictionaryDefinitionText(0, ""); // Call correct reset method
+        translationResult.setDictionaryExampleText(0, ""); // Call correct reset method
       }
 
       // Process the chunk
@@ -157,7 +171,7 @@ export function setupMessageHandler(
       // Ensure loading is off and stream is marked ended, even if finalize had issues
       translationResult.setLoading(false);
       streamEnded = true;
-
+ 
     } else {
       console.log(
         `[Lite Lingo Parser] Received unhandled message type "${message.type}", ignoring`
