@@ -1,6 +1,5 @@
 import { BookHeadphones, Languages, Volume2, X } from "lucide-react"; // Removed Info, kept BookHeadphones
 import React, { useCallback } from "react"; // Re-import useCallback
-import { Button } from "../ui/button";
 
 interface BubbleActionButtonsProps {
   onTranslate: () => void;
@@ -34,12 +33,16 @@ export const BubbleActionButtons: React.FC<BubbleActionButtonsProps> = ({
     onClose();
   };
 
+  // 创建一个通用按钮样式类 - 使用已定义的颜色类
+  const buttonClass =
+    "h-5 w-5 rounded-md flex items-center justify-center hover:bg-accent focus:outline-none transition-colors";
+  const iconClass = "h-3 w-3 text-gray-700";
+
   return (
     <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        /* Removed size="icon" */
-        className="rounded-md bubble-button h-5 w-5" // Changed to h-5 w-5, removed p-1
+      <button
+        type="button"
+        className={buttonClass}
         title="logo"
         onMouseEnter={useCallback(
           (e: React.MouseEvent<HTMLButtonElement>) =>
@@ -52,14 +55,13 @@ export const BubbleActionButtons: React.FC<BubbleActionButtonsProps> = ({
           []
         )}
       >
-        <BookHeadphones color="#374151" className="h-3 w-3" />
-      </Button>
+        <BookHeadphones className={iconClass} />
+      </button>
 
-      <Button
+      <button
+        type="button"
         onClick={handleTranslateClick}
-        variant="ghost"
-        /* Removed size="icon" */
-        className="rounded-md bubble-button h-5 w-5" // Changed to h-5 w-5, removed p-1
+        className={buttonClass}
         title="翻译"
         onMouseEnter={useCallback(
           (e: React.MouseEvent<HTMLButtonElement>) =>
@@ -72,14 +74,13 @@ export const BubbleActionButtons: React.FC<BubbleActionButtonsProps> = ({
           []
         )}
       >
-        <Languages color="#374151" className="h-3 w-3" />{" "}
-        {/* Changed to h-2 w-2 */}
-      </Button>
-      <Button
+        <Languages className={iconClass} />
+      </button>
+
+      <button
+        type="button"
         onClick={handleSpeechClick}
-        variant="ghost" // Restored variant
-        /* Removed size="icon" */
-        className="rounded-md bubble-button h-5 w-5" // Changed to h-5 w-5, removed p-1
+        className={buttonClass}
         title="朗读"
         onMouseEnter={useCallback(
           (e: React.MouseEvent<HTMLButtonElement>) =>
@@ -92,14 +93,13 @@ export const BubbleActionButtons: React.FC<BubbleActionButtonsProps> = ({
           []
         )}
       >
-        <Volume2 color="#374151" className="h-3 w-3" />{" "}
-        {/* Changed to h-2 w-2 */}
-      </Button>
-      <Button
+        <Volume2 className={iconClass} />
+      </button>
+
+      <button
+        type="button"
         onClick={handleCloseClick}
-        variant="ghost" // Restored variant
-        /* Removed size="icon" */
-        className="rounded-md bubble-button h-5 w-5" // Changed to h-5 w-5, removed p-1
+        className={buttonClass}
         title="关闭"
         onMouseEnter={useCallback(
           (e: React.MouseEvent<HTMLButtonElement>) =>
@@ -112,8 +112,8 @@ export const BubbleActionButtons: React.FC<BubbleActionButtonsProps> = ({
           []
         )}
       >
-        <X color="#374151" className="h-3 w-3" /> {/* Changed to h-2 w-2 */}
-      </Button>
+        <X className={iconClass} />
+      </button>
     </div>
   );
 };

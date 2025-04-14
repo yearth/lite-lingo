@@ -4,6 +4,7 @@ import {
   offset,
   shift,
 } from "@floating-ui/dom";
+import { AnimatePresence, motion } from "framer-motion"; // 导入 AnimatePresence
 import React, { useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAsync } from "react-use";
@@ -126,31 +127,38 @@ export const SelectionBubble: React.FC<SelectionBubbleProps> = ({
     }
   };
 
-  if (!isVisible) {
-    return null;
-  }
-
-  const bubbleContent = (
-    <div
-      ref={bubbleRef}
-      id="lite-lingo-bubble" // Keep this ID for the manager's getContainer
-      className="fixed z-[9999] rounded-lg shadow-lg p-1 flex items-center gap-1 bg-white border border-gray-200 light" // Changed rounded-full to rounded-lg
-      style={{
-        left: `${bubblePosition?.x || 0}px`,
-        top: `${bubblePosition?.y || 0}px`,
-      }}
-      onClick={(event) => {
-        event.stopPropagation();
-      }}
-    >
-      <BubbleActionButtons
-        onTranslate={handleTranslate}
-        onSpeech={handleSpeech}
-        onClose={handleClose}
-      />
-    </div>
-  );
-
   // 使用 Portal 将气泡渲染到 body 中，避免被其他元素遮挡
-  return createPortal(bubbleContent, document.body);
+  return createPortal(
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          ref={bubbleRef}
+          id="lite-lingo-bubble" // Keep this ID for the manager's getContainer
+          className="fixed z-[9999] rounded-lg shadow-lg p-1 flex items-center gap-1 bg-white border border-gray-200 light"
+          style={{
+            left: `${bubblePosition?.x || 0}px`,
+            top: `${bubblePosition?.y || 0}px`,
+          }}
+          initial={{ opacity: 0, scale: 0.9, y: -5 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: -5 }}
+          transition={{
+            type: "spring",
+            duration: 0.3,
+            bounce: 0.2,
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <BubbleActionButtons
+            onTranslate={handleTranslate}
+            onSpeech={handleSpeech}
+            onClose={handleClose}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
 };
