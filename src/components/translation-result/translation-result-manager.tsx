@@ -1,4 +1,9 @@
-import { AnalysisInfoPayload } from "@/types/messaging"; // Import V2 type
+import {
+  AnalysisInfoPayload,
+  BackgroundRequestMessage,
+  CancelTranslationPayload,
+  MSG_TYPE_MUTATION_CANCEL_TRANSLATION,
+} from "@/types/messaging"; // Import V2 type
 import * as ReactDOM from "react-dom/client";
 // Dictionary types are now primarily used within TranslationState
 import { TranslationResult } from "./translation-result"; // Import the component and its props type
@@ -82,6 +87,9 @@ export class TranslationResultManager {
     if (!this.isInitialized || !this.isVisible) return; // Check manager's isVisible
     console.log("[Lite Lingo] Hiding translation result");
 
+    // 发送取消翻译流的消息
+    this.cancelOngoingTranslation();
+
     // Update Manager's UI state
     this.isVisible = false;
     this.position = null;
@@ -91,6 +99,30 @@ export class TranslationResultManager {
 
     // Render one last time to ensure component is unmounted/hidden by React
     this.renderComponent();
+  }
+
+  // 新增：取消正在进行的翻译流
+  private cancelOngoingTranslation(): void {
+    console.log("[Lite Lingo] Cancelling any ongoing translation stream");
+
+    const message: BackgroundRequestMessage<CancelTranslationPayload> = {
+      type: MSG_TYPE_MUTATION_CANCEL_TRANSLATION,
+      payload: {
+        reason: "user_closed_panel",
+      },
+    };
+
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(
+          "[Lite Lingo] Error cancelling translation:",
+          chrome.runtime.lastError.message
+        );
+        return;
+      }
+
+      console.log("[Lite Lingo] Translation cancellation response:", response);
+    });
   }
 
   // Delegate setLoading to state manager
@@ -157,12 +189,15 @@ export class TranslationResultManager {
   }
 
   // --- Methods to set specific state parts (delegated) ---
-  public setContext(context: { word_translation?: string; explanation?: string } | null): void {
+  public setContext(
+    context: { word_translation?: string; explanation?: string } | null
+  ): void {
     if (!this.isInitialized || !this.isVisible) return;
     this.stateManager.setContext(context);
   }
 
-  public setDictionary(dictionary: any | null): void { // Use 'any' for now, refine if DictionaryData type is available
+  public setDictionary(dictionary: any | null): void {
+    // Use 'any' for now, refine if DictionaryData type is available
     if (!this.isInitialized || !this.isVisible) return;
     this.stateManager.setDictionary(dictionary);
   }
@@ -184,31 +219,33 @@ export class TranslationResultManager {
   }
 
   public appendContextExplanation(chunk: string): void {
-     if (!this.isInitialized || !this.isVisible) return;
+    if (!this.isInitialized || !this.isVisible) return;
     this.stateManager.appendContextExplanation(chunk);
   }
 
   // Update methods to accept and pass index
   public appendDictionaryDefinition(index: number, chunk: string): void {
-     if (!this.isInitialized || !this.isVisible) return;
+    if (!this.isInitialized || !this.isVisible) return;
     this.stateManager.appendDictionaryDefinition(index, chunk);
   }
 
   public appendDictionaryExample(index: number, chunk: string): void {
-     if (!this.isInitialized || !this.isVisible) return;
+    if (!this.isInitialized || !this.isVisible) return;
     this.stateManager.appendDictionaryExample(index, chunk);
   }
 
-   // Methods to reset streamed fields at the beginning (Update to accept index and call correct method)
-   public setDictionaryDefinitionText(index: number, text: string): void { // Rename method to match state
-     if (!this.isInitialized || !this.isVisible) return;
-     this.stateManager.setDictionaryDefinitionText(index, text); // Call correct method
-   }
+  // Methods to reset streamed fields at the beginning (Update to accept index and call correct method)
+  public setDictionaryDefinitionText(index: number, text: string): void {
+    // Rename method to match state
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setDictionaryDefinitionText(index, text); // Call correct method
+  }
 
-   public setDictionaryExampleText(index: number, text: string): void { // Rename method to match state
-      if (!this.isInitialized || !this.isVisible) return;
-     this.stateManager.setDictionaryExampleText(index, text); // Call correct method
-   }
+  public setDictionaryExampleText(index: number, text: string): void {
+    // Rename method to match state
+    if (!this.isInitialized || !this.isVisible) return;
+    this.stateManager.setDictionaryExampleText(index, text); // Call correct method
+  }
 
   // --- End V2 Streaming Methods ---
 

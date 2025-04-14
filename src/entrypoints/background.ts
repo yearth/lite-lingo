@@ -3,7 +3,9 @@ import {
   AddWordPayload,
   BackgroundRequestMessage,
   BackgroundResponseMessage,
+  CancelTranslationPayload,
   MSG_TYPE_MUTATION_ADD_WORD,
+  MSG_TYPE_MUTATION_CANCEL_TRANSLATION,
   MSG_TYPE_MUTATION_REQUEST_TTS,
   MSG_TYPE_MUTATION_TRANSLATE_STREAM,
   MSG_TYPE_QUERY_FETCH_NOTEBOOK,
@@ -15,7 +17,10 @@ import {
 import { handleAddWord } from "../background-actions/add-word.action";
 import { handleFetchNotebook } from "../background-actions/fetch-notebook.action";
 import { handleRequestTts } from "../background-actions/request-tts.action";
-import { handleTranslateStream } from "../background-actions/translate-stream.action";
+import {
+  cancelTranslationStream,
+  handleTranslateStream,
+} from "../background-actions/translate-stream.action";
 
 console.log(
   "[Background] Script loaded via defineBackground. Initializing QueryClient..."
@@ -101,6 +106,13 @@ export default defineBackground(() => {
             message.payload as TranslateStreamPayload, // Assert payload type
             sender, // Pass sender for tabId access
             sendResponse // Pass sendResponse for initial ack/error
+          );
+          break;
+        case MSG_TYPE_MUTATION_CANCEL_TRANSLATION:
+          cancelTranslationStream(
+            message.payload as CancelTranslationPayload,
+            sender,
+            sendResponse
           );
           break;
         default:

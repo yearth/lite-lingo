@@ -5,6 +5,8 @@ export const MSG_TYPE_QUERY_FETCH_NOTEBOOK = "QUERY_FETCH_NOTEBOOK";
 export const MSG_TYPE_MUTATION_ADD_WORD = "MUTATION_ADD_WORD";
 export const MSG_TYPE_MUTATION_REQUEST_TTS = "MUTATION_REQUEST_TTS";
 export const MSG_TYPE_MUTATION_TRANSLATE_STREAM = "MUTATION_TRANSLATE_STREAM";
+export const MSG_TYPE_MUTATION_CANCEL_TRANSLATION =
+  "MUTATION_CANCEL_TRANSLATION";
 
 // Background -> Content Script (Stream updates via chrome.tabs.sendMessage)
 // V1 Types
@@ -105,6 +107,11 @@ export interface TranslateStreamPayload {
   text: string;
   context?: string;
   targetLanguage: string;
+}
+
+// 取消翻译流
+export interface CancelTranslationPayload {
+  reason?: string; // 可选的取消原因
 }
 
 // // 流式数据块 - Superseded by StreamEventPayload with type 'text_chunk'
