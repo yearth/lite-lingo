@@ -1,5 +1,5 @@
 import type { ContentScriptContext } from "#imports";
-import { SelectionPopup } from "@/components/SelectionPopup";
+import { SelectionPopup } from "@/components/selection-popup";
 import { useSelectionStore } from "@/store/selection";
 import { createRoot } from "react-dom/client";
 import "~/assets/globals.css";
