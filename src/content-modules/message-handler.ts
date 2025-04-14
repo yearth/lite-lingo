@@ -17,13 +17,19 @@ export function setupMessageHandler(
   let streamEnded = false;
   let fullParsedObject: any = null; // To store the final object from onComplete
 
-  // 每次 message-handler 初始化时就重置流状态
-  streamEnded = false;
+  // 重置所有翻译相关状态，将其视为全新的翻译事件
+  function resetTranslationState() {
+    console.log(
+      "[Lite Lingo Parser] Resetting all translation state for new event"
+    );
+    streamEnded = false;
+    fullParsedObject = null;
+    parser = null; // 确保parser也被重置，强制在下一次翻译时重新初始化
+  }
 
   function initializeParserAndCallbacks() {
     console.log("[Lite Lingo Parser] Initializing parser and callbacks...");
-    streamEnded = false;
-    fullParsedObject = null;
+    // 不在这里重置状态，因为resetTranslationState已经被调用了
 
     // Define callbacks for the parser
     const callbacks = {
@@ -139,44 +145,26 @@ export function setupMessageHandler(
   ) => {
     console.log("[Lite Lingo Parser] Received message:", message.type);
 
-    // 不能直接访问 translationResult.isVisible，所以采用新的策略
-    // 我们在每次接收到新的 TEXT_CHUNK_RECEIVED 消息时强制重置 streamEnded
-    // 这样即使用户关闭了面板，下一次翻译也能正常启动
+    // 检测新的翻译事件
     if (isTextChunkMessage(message)) {
-      // 第一个文本块消息被视为新的翻译会话开始
-      // 无论前一次会话的状态如何，都强制重置 streamEnded
+      // 如果这是第一个文本块，说明是新的翻译事件开始
+      // 无论上一次翻译是否正常结束，都将其视为新事件
       if (!parser) {
-        // 只有在需要初始化 parser 时才重置，即新的翻译会话
-        console.log(
-          "[Lite Lingo Parser] New translation session, resetting stream state"
-        );
-        streamEnded = false;
-      }
-    }
+        // 重置所有翻译相关状态
+        resetTranslationState();
 
-    if (streamEnded) {
-      console.log(
-        "[Lite Lingo Parser] Ignoring message after stream end/error."
-      );
-      return false;
-    }
-
-    if (isTextChunkMessage(message)) {
-      // Initialize parser on the first chunk
-      if (!parser) {
+        // 重新初始化解析器
         initializeParserAndCallbacks();
         translationResult.setLoading(true);
-        // Reset UI fields that will be streamed
+
+        // 重置 UI 字段
         translationResult.setTranslationResult("");
         translationResult.setContext(null);
-        // Call the correct setters to reset/clear the arrays in the state
-        // Assuming index 0 is sufficient for resetting, or perhaps better to reset in TranslationState.reset()
-        // Let's keep the reset calls here for now, using index 0.
-        translationResult.setDictionaryDefinitionText(0, ""); // Call correct reset method
-        translationResult.setDictionaryExampleText(0, ""); // Call correct reset method
+        translationResult.setDictionaryDefinitionText(0, "");
+        translationResult.setDictionaryExampleText(0, "");
       }
 
-      // Process the chunk
+      // 处理文本块
       if (parser) {
         parser.processChunk(message.payload.text);
       }
@@ -210,6 +198,8 @@ export function setupMessageHandler(
   };
 
   console.log("[Lite Lingo Parser] Registering message listener...");
+  // 初始状态时也重置一次翻译状态
+  resetTranslationState();
   chrome.runtime.onMessage.addListener(messageListener);
   console.log("[Lite Lingo Parser] Message listener registered.");
 
