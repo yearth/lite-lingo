@@ -1,17 +1,16 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  autoUpdate,
+  computePosition,
   flip,
   offset,
   shift,
-  useFloating,
   VirtualElement,
 } from "@floating-ui/react"; // Import Floating UI hooks and types
-import React, { useEffect, useMemo, useRef } from "react"; // Remove useState import
+import { AnimatePresence, motion } from "framer-motion"; // 导入 motion 组件
+import React, { useEffect, useMemo, useRef, useState } from "react"; // 添加 useState
 import { createPortal } from "react-dom";
 // import Draggable, { DraggableData, DraggableEvent } from "react-draggable"; // Comment out Draggable import
 import { DictionaryData } from "../../types/dictionary";
-import { Separator } from "../ui/separator";
+// import { Separator } from "../ui/separator";
 import { ActionButtons } from "./action-buttons";
 import { DictionaryDisplay } from "./dictionary-display";
 import { ResultHeader } from "./result-header";
@@ -46,11 +45,15 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
   dictionaryDefinitions, // Destructure plural name
   dictionaryExamples, // Destructure plural name
 }) => {
-  // Floating UI setup
-  const referenceElement = useMemo((): VirtualElement | null => {
+  // 使用与划词气泡相同的定位策略
+  const resultRef = useRef<HTMLDivElement>(null);
+  const [resultPosition, setResultPosition] = useState({ x: 0, y: 0 });
+
+  // 创建虚拟元素作为参考点
+  const virtualElement = useMemo((): VirtualElement | null => {
     if (!position) return null;
-    // Try using getClientRects()[0] for potentially more accurate positioning,
-    // especially for multi-line selections. Fallback to getBoundingClientRect.
+
+    // 使用与划词气泡相同的方式获取选择区域的位置
     const rect =
       position.getClientRects().length > 0
         ? position.getClientRects()[0]
@@ -60,58 +63,31 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
 
     return {
       getBoundingClientRect: () => rect,
-      // getClientRects is optional for VirtualElement
-      // getClientRects: () => position.getClientRects(),
       contextElement: position.startContainer.parentElement ?? undefined,
     };
   }, [position]);
 
-  // Initialize useFloating without the elements option initially
-  const { refs, floatingStyles, context } = useFloating({
-    // elements: { // Removed from here
-    //   reference: referenceElement,
-    // },
-    whileElementsMounted: autoUpdate,
-    placement: "bottom-start", // Or choose another placement
-    middleware: [
-      offset(10), // Add some space between selection and result box
-      flip(), // Flip to opposite side if not enough space
-      shift({ padding: 5 }), // Prevent overflow
-    ],
-  });
-
-  // Use useEffect to set the reference element when it changes
+  // 使用 useAsync 异步计算位置
   useEffect(() => {
-    console.log(
-      "[Lite Lingo] Rendering TranslationResult referenceElement:",
-      referenceElement
-    );
+    const calculatePosition = async () => {
+      if (!isVisible || !virtualElement || !resultRef.current) return;
 
-    refs.setReference(referenceElement);
-  }, [refs, referenceElement]);
+      // 使用 computePosition 计算位置
+      const { x, y } = await computePosition(
+        virtualElement as Element,
+        resultRef.current,
+        {
+          placement: "bottom-start",
+          middleware: [offset(10), flip(), shift({ padding: 5 })],
+        }
+      );
 
-  const nodeRef = useRef<HTMLDivElement>(null); // Keep nodeRef for Draggable
-
-  // Combine refs for Floating UI and Draggable
-  const mergedRef = useMemo(() => {
-    return (instance: HTMLDivElement | null) => {
-      refs.setFloating(instance);
-      (nodeRef as React.MutableRefObject<HTMLDivElement | null>).current =
-        instance;
+      console.log("[Lite Lingo] 结果面板定位完成:", { x, y });
+      setResultPosition({ x, y });
     };
-  }, [refs, nodeRef]);
 
-  // Remove drag offset state and handler
-  // const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  // useEffect(() => {
-  //   setDragOffset({ x: 0, y: 0 });
-  // }, [position]);
-  // const handleDrag = (e: DraggableEvent, data: DraggableData) => {
-  //   setDragOffset((prev) => ({
-  //     x: prev.x + data.deltaX,
-  //     y: prev.y + data.deltaY,
-  //   }));
-  // };
+    calculatePosition();
+  }, [isVisible, virtualElement]);
 
   const handleSpeech = () => {
     if (onSpeech) {
@@ -119,80 +95,80 @@ export const TranslationResult: React.FC<TranslationResultProps> = ({
     }
   };
 
-  if (!isVisible) {
-    return null;
-  }
-
-  // Log the calculated styles before rendering
-  console.log("[Lite Lingo] Calculated Floating Styles:", floatingStyles);
-
-  // Log the calculated styles before rendering
-  console.log("[Lite Lingo] Calculated Floating Styles:", floatingStyles);
-
-  const resultContent = (
-    // Comment out Draggable again
-    // <Draggable
-    //   nodeRef={nodeRef as React.RefObject<HTMLElement>}
-    //   handle=".translation-result-drag-handle"
-    //   onDrag={handleDrag}
-    //   position={dragOffset}
-    // >
-    <div
-      // Apply Floating UI ref directly when Draggable is removed
-      // Use floatingStyles directly for positioning
-      ref={refs.setFloating} // Apply Floating UI ref directly
-      id="lite-lingo-translation-result"
-      className="z-[9999] rounded-lg shadow-lg p-3 max-w-xs min-w-[200px] bg-white border border-gray-200 light cursor-default"
-      style={floatingStyles} // Apply floatingStyles directly
-      onClick={(event) => {
-        event.stopPropagation();
-      }}
-    >
-      <ResultHeader onClose={onClose} />
-      {/* Main Translation - Display directly with bold styling */}
-      <div className="text-sm font-bold mb-2 break-words text-gray-800">
-        {text || (isLoading && "...")} {/* Show text or loading indicator */}
-      </div>
-      <ScrollArea className="h-48 pr-3" onWheel={(e) => e.stopPropagation()}>
-        {/* Explanation Section */}
-        {explanation && (
-          <>
-            <Separator />
-            <TextSection title="Explanation" text={explanation} />
-          </>
-        )}
-        {/* Context Explanation Section */}
-        {contextExplanation && (
-          <>
-            <Separator />
-            <TextSection
-              title="Context Explanation"
-              text={contextExplanation}
-            />
-          </>
-        )}
-        {/* Dictionary Section - Render if any dictionary info is available */}
-        {(dictionaryData || dictionaryDefinitions || dictionaryExamples) && ( // Use correct plural names here
-          <>
-            <Separator />
-            {/* Pass dictionary data and streamed text arrays to its display component, providing null defaults */}
-            <DictionaryDisplay
-              data={dictionaryData ?? null}
-              definitionTexts={dictionaryDefinitions ?? null} // Pass plural prop
-              exampleTexts={dictionaryExamples ?? null} // Pass plural prop
-            />
-          </>
-        )}
-      </ScrollArea>
-      <ActionButtons
-        textToCopy={text}
-        onSpeech={handleSpeech}
-        isSpeechDisabled={isLoading || text.length === 0}
-        isCopyDisabled={isLoading || text.length === 0}
-      />
-    </div>
-    // </Draggable> // Comment out Draggable again
+  return createPortal(
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          ref={resultRef}
+          id="lite-lingo-translation-result"
+          className="fixed z-[9999] rounded-lg shadow-lg p-3 max-w-xs min-w-[200px] bg-white border border-gray-200 light cursor-default"
+          style={{
+            left: `${resultPosition.x}px`,
+            top: `${resultPosition.y}px`,
+          }}
+          initial={{ opacity: 0, scale: 0.9, y: -5 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: -5 }}
+          transition={{
+            type: "spring",
+            duration: 0.3,
+            bounce: 0.2,
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <ResultHeader onClose={onClose} />
+          {/* Main Translation - Display directly with bold styling */}
+          <div className="text-sm font-bold mb-2 break-words text-gray-800">
+            {text || (isLoading && "...")}{" "}
+            {/* Show text or loading indicator */}
+          </div>
+          <div
+            className="h-48 pr-3 overflow-y-auto"
+            onWheel={(e) => e.stopPropagation()}
+          >
+            {/* Explanation Section */}
+            {explanation && (
+              <>
+                <hr className="my-2 border-t border-gray-200" />
+                <TextSection title="Explanation" text={explanation} />
+              </>
+            )}
+            {/* Context Explanation Section */}
+            {contextExplanation && (
+              <>
+                <hr className="my-2 border-t border-gray-200" />
+                <TextSection
+                  title="Context Explanation"
+                  text={contextExplanation}
+                />
+              </>
+            )}
+            {/* Dictionary Section - Render if any dictionary info is available */}
+            {(dictionaryData ||
+              dictionaryDefinitions ||
+              dictionaryExamples) && (
+              <>
+                <hr className="my-2 border-t border-gray-200" />
+                {/* Pass dictionary data and streamed text arrays to its display component, providing null defaults */}
+                <DictionaryDisplay
+                  data={dictionaryData ?? null}
+                  definitionTexts={dictionaryDefinitions ?? null}
+                  exampleTexts={dictionaryExamples ?? null}
+                />
+              </>
+            )}
+          </div>
+          <ActionButtons
+            textToCopy={text}
+            onSpeech={handleSpeech}
+            isSpeechDisabled={isLoading || text.length === 0}
+            isCopyDisabled={isLoading || text.length === 0}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
-
-  return createPortal(resultContent, document.body);
 };
