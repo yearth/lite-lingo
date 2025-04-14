@@ -1,3 +1,4 @@
+import { useDraggable } from "@/hooks/use-draggable";
 import { useSelectionStore } from "@/store/selection";
 import {
   arrow,
@@ -8,22 +9,22 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react";
-import { useEffect, useRef, useState } from "react";
-
-interface Position {
-  x: number;
-  y: number;
-}
+import { useEffect, useRef } from "react";
 
 export function SelectionPopup() {
   const { selectedText, position, isVisible, setVisibility } =
     useSelectionStore();
   const arrowRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
   const portalRef = useRef<HTMLElement | null>(null);
   const shadowRootRef = useRef<ShadowRoot | null>(null);
-  const dragStartPos = useRef<Position | null>(null);
-  const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+
+  const {
+    isDragging,
+    dragOffset,
+    handleDragStart,
+    handleDragMove,
+    handleDragEnd,
+  } = useDraggable();
 
   const { refs, floatingStyles } = useFloating({
     placement: "top",
@@ -91,36 +92,6 @@ export function SelectionPopup() {
     if (portalElement && !portalElement.contains(target)) {
       setVisibility(false);
     }
-  };
-
-  const handleDragStart = (e: Event) => {
-    const mouseEvent = e as MouseEvent;
-    // 只有点击标题栏才能拖动
-    if (!(mouseEvent.target as HTMLElement).closest(".handle")) return;
-
-    setIsDragging(true);
-    dragStartPos.current = {
-      x: mouseEvent.clientX - dragOffset.x,
-      y: mouseEvent.clientY - dragOffset.y,
-    };
-  };
-
-  const handleDragMove = (e: Event) => {
-    if (!isDragging || !dragStartPos.current) return;
-    const mouseEvent = e as MouseEvent;
-
-    const deltaX = mouseEvent.clientX - dragStartPos.current.x;
-    const deltaY = mouseEvent.clientY - dragStartPos.current.y;
-
-    setDragOffset({
-      x: deltaX,
-      y: deltaY,
-    });
-  };
-
-  const handleDragEnd = (e: Event) => {
-    setIsDragging(false);
-    dragStartPos.current = null;
   };
 
   useEffect(() => {
