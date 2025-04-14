@@ -25,12 +25,31 @@ export default defineContentScript({
     const { selectionBubble, translationResult, cleanupUiManagers } =
       initUiManagers();
 
-    const cleanupMessageHandler = setupMessageHandler(translationResult);
+    const { cleanup: cleanupMessageHandler, reset: resetMessageHandler } =
+      setupMessageHandler(translationResult);
+
+    const enhancedHandleTranslate = (
+      text: string,
+      context: string,
+      translationResultMgr: typeof translationResult,
+      selectionBubbleMgr: typeof selectionBubble,
+      selectionRange: Range
+    ) => {
+      console.log("[Lite Lingo] Resetting message handler before translation");
+      resetMessageHandler();
+      handleTranslate(
+        text,
+        context,
+        translationResultMgr,
+        selectionBubbleMgr,
+        selectionRange
+      );
+    };
 
     const cleanupSelectionListener = setupSelectionListener(
       selectionBubble,
       translationResult,
-      handleTranslate,
+      enhancedHandleTranslate,
       handleSpeech
     );
 

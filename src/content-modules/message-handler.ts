@@ -203,10 +203,18 @@ export function setupMessageHandler(
   chrome.runtime.onMessage.addListener(messageListener);
   console.log("[Lite Lingo Parser] Message listener registered.");
 
-  // Return a cleanup function to remove the listener
-  return () => {
-    console.log("[Lite Lingo Parser] Removing message listener...");
-    chrome.runtime.onMessage.removeListener(messageListener);
-    console.log("[Lite Lingo Parser] Message listener removed.");
+  // 返回包含 cleanup 和 reset 方法的对象
+  return {
+    // 清理函数 - 移除消息监听器
+    cleanup: () => {
+      console.log("[Lite Lingo Parser] Removing message listener...");
+      chrome.runtime.onMessage.removeListener(messageListener);
+      console.log("[Lite Lingo Parser] Message listener removed.");
+    },
+    // 重置函数 - 重置所有翻译相关状态
+    reset: () => {
+      console.log("[Lite Lingo Parser] External reset triggered");
+      resetTranslationState();
+    },
   };
 }
