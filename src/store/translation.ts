@@ -54,7 +54,10 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   setVisibility: (visible) => set({ isVisible: visible }),
   setPosition: (position) => set({ position }),
   setOriginalText: (text) => set({ originalText: text }),
-  setTranslatedText: (text) => set({ translatedText: text }),
+  setTranslatedText: (text) => {
+    console.log("设置翻译结果:", text);
+    set({ translatedText: text });
+  },
   setLanguages: (source, target) =>
     set({ sourceLanguage: source, targetLanguage: target }),
   setLoading: (loading) => set({ isLoading: loading }),

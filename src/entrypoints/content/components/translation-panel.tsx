@@ -249,7 +249,6 @@ export function TranslationPanel() {
                 ease: "easeOut",
               }}
             >
-              {/* Header 部分 - 可拖动区域 */}
               <div
                 className="p-3 border-b border-gray-100 flex items-center justify-between bg-white panel-handle"
                 style={{
@@ -296,7 +295,18 @@ export function TranslationPanel() {
                       <span className="text-sm text-gray-500">翻译中...</span>
                     </div>
                   ) : (
-                    <p className="text-sm">{translatedText || "等待翻译..."}</p>
+                    <p className="text-sm">
+                      {translatedText ? translatedText : "等待翻译..."}
+                      <br />
+                      <span className="text-xs text-gray-400">
+                        调试信息:{" "}
+                        {JSON.stringify({
+                          translatedText,
+                          originalText,
+                          isLoading,
+                        })}
+                      </span>
+                    </p>
                   )}
                 </div>
               </div>

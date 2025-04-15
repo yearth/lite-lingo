@@ -1,6 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
 
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -36,13 +35,51 @@ export default defineBackground(() => {
     }
   });
 
-  // 添加消息监听器
+  // 添加消息监听器，处理API请求 - 解决CORS问题
   chrome.runtime.onMessage.addListener(
     (
       message: any,
       sender: any,
       sendResponse: (response: any) => void
     ): boolean => {
+      // 处理API请求
+      if (message.type === "API_REQUEST") {
+        const { url, method = "GET", data } = message;
+
+        console.log(`[Background] 处理API请求: ${method} ${url}`);
+
+        // 准备headers
+        const headers: Record<string, string> = {};
+
+        // 仅为非GET请求添加Content-Type
+        if (method !== "GET") {
+          headers["Content-Type"] = "application/json";
+        }
+
+        // 总是添加Accept头
+        headers["Accept"] = "application/json";
+
+        console.log(`[Background] 请求头:`, headers);
+
+        // 使用fetch执行请求
+        fetch(url, {
+          method,
+          headers,
+          body: data ? JSON.stringify(data) : undefined,
+        })
+          .then((response) => response.json())
+          .then((result) => {
+            console.log("[Background] API响应:", result);
+            sendResponse({ success: true, data: result });
+          })
+          .catch((error) => {
+            console.error("[Background] API错误:", error);
+            sendResponse({ success: false, error: error.message });
+          });
+
+        return true; // 保持消息通道开放
+      }
+
       return true;
     }
   );

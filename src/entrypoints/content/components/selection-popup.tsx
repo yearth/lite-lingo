@@ -6,6 +6,7 @@ import {
   TranslateIcon,
 } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
+import { backgroundGet } from "@/services/api/instance";
 import { useSelectionStore } from "@/store/selection";
 import { useTranslationStore } from "@/store/translation";
 import {
@@ -25,6 +26,8 @@ export function SelectionPopup() {
     setVisibility: setTranslationVisibility,
     setPosition: setTranslationPosition,
     setOriginalText,
+    setTranslatedText,
+    setLoading,
   } = useTranslationStore();
 
   const portalRef = useRef<HTMLElement | null>(null);
@@ -64,9 +67,10 @@ export function SelectionPopup() {
     {
       icon: <TranslateIcon />,
       tooltip: "翻译",
-      action: () => {
+      action: async () => {
         // 获取选中文本
         const selectedText = window.getSelection()?.toString() || "";
+        console.log("[ Lite Lingo ] selectedText", selectedText);
 
         // 先设置翻译面板的所有数据
         setOriginalText(selectedText);
@@ -74,8 +78,39 @@ export function SelectionPopup() {
           setTranslationPosition(position);
         }
 
-        // 再设置面板可见性，确保先显示翻译面板
+        // 设置加载状态
+        setLoading(true);
+
+        // 显示翻译面板
         setTranslationVisibility(true);
+
+        try {
+          // 使用background脚本处理API请求，避免CORS问题
+          const response = await backgroundGet<{
+            code: string;
+            message: string;
+            data: string;
+          }>("/v1/app");
+
+          // 打印响应，检查是否正确接收
+          console.log("翻译API响应:", response);
+
+          // 检查响应
+          if (response.code === "0") {
+            // 更新翻译结果
+            setTranslatedText(response.data);
+          } else {
+            // 处理错误
+            setTranslatedText(`错误: ${response.message}`);
+          }
+        } catch (error) {
+          // 处理异常
+          console.error("翻译请求失败:", error);
+          setTranslatedText("请求失败，请稍后重试");
+        } finally {
+          // 重置加载状态
+          setLoading(false);
+        }
 
         // 最后隐藏划词气泡
         setVisibility(false);

@@ -1,6 +1,6 @@
 import type { ContentScriptContext } from "#imports";
-import { TranslationPanel } from "@/components/translation-panel";
 import { SelectionPopup } from "@/entrypoints/content/components/selection-popup";
+import { TranslationPanel } from "@/entrypoints/content/components/translation-panel";
 import { useSelectionStore } from "@/store/selection";
 import { useTranslationStore } from "@/store/translation";
 import { createRoot } from "react-dom/client";
