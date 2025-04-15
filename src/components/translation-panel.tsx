@@ -1,4 +1,4 @@
-import { CloseIcon, CopyIcon, SpeakIcon } from "@/components/icons";
+import { CloseIcon, CopyIcon, PinIcon, SpeakIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { useSelectionStore } from "@/store/selection";
 import { useTranslationStore } from "@/store/translation";
@@ -22,7 +22,9 @@ export function TranslationPanel() {
     sourceLanguage,
     targetLanguage,
     isLoading,
+    isPinned,
     setVisibility,
+    togglePinned,
   } = useTranslationStore();
   const { setVisibility: setSelectionVisibility } = useSelectionStore();
 
@@ -158,6 +160,9 @@ export function TranslationPanel() {
 
     if (!panelRef.current) return;
 
+    // 如果面板被固定，则不关闭面板
+    if (isPinned) return;
+
     // 如果点击目标不在面板内，则关闭面板
     if (!panelRef.current.contains(target as Node)) {
       console.log("点击在面板外部，关闭面板");
@@ -201,7 +206,7 @@ export function TranslationPanel() {
     return () => {
       document.removeEventListener("mousedown", handleDocumentClick);
     };
-  }, [isVisible, isDragging]);
+  }, [isVisible, isDragging, isPinned]); // 添加isPinned作为依赖
 
   useEffect(() => {
     console.log("拖拽偏移量更新:", dragOffset);
@@ -261,11 +266,18 @@ export function TranslationPanel() {
                     <span>{targetLanguage}</span>
                   </div>
                 </div>
-                <IconButton
-                  icon={<CloseIcon />}
-                  tooltipContent="关闭"
-                  onClick={handleClose}
-                />
+                <div className="flex items-center space-x-1">
+                  <IconButton
+                    icon={<PinIcon filled={isPinned} />}
+                    tooltipContent={isPinned ? "取消固定" : "固定面板"}
+                    onClick={togglePinned}
+                  />
+                  <IconButton
+                    icon={<CloseIcon />}
+                    tooltipContent="关闭"
+                    onClick={handleClose}
+                  />
+                </div>
               </div>
 
               {/* Content 部分 */}

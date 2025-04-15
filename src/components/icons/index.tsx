@@ -116,3 +116,27 @@ export function CloseIcon() {
     </svg>
   );
 }
+
+export function PinIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9.97 1.703a.6.6 0 0 0-.848 0l-1.412 1.412-.117.703-.703.117-1.412 1.412a.6.6 0 0 0 0 .848l1.412 1.412.117.703.703.117 1.412 1.412a.6.6 0 0 0 .848 0l1.412-1.412.117-.703.703-.117 1.412-1.412a.6.6 0 0 0 0-.848l-1.412-1.412-.117-.703-.703-.117L9.97 1.703z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M4.558 8.849L1.776 11.63a.6.6 0 0 0 0 .848l1.746 1.746a.6.6 0 0 0 .848 0l2.781-2.781"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}

@@ -20,6 +20,8 @@ interface TranslationState {
   targetLanguage: string;
   // 是否正在加载
   isLoading: boolean;
+  // 是否固定面板
+  isPinned: boolean;
   // 设置可见性
   setVisibility: (visible: boolean) => void;
   // 设置位置
@@ -32,6 +34,10 @@ interface TranslationState {
   setLanguages: (source: string, target: string) => void;
   // 设置加载状态
   setLoading: (loading: boolean) => void;
+  // 设置固定状态
+  setPinned: (pinned: boolean) => void;
+  // 切换固定状态
+  togglePinned: () => void;
   // 重置状态
   reset: () => void;
 }
@@ -44,6 +50,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   sourceLanguage: "auto",
   targetLanguage: "zh-CN",
   isLoading: false,
+  isPinned: false,
   setVisibility: (visible) => set({ isVisible: visible }),
   setPosition: (position) => set({ position }),
   setOriginalText: (text) => set({ originalText: text }),
@@ -51,6 +58,8 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   setLanguages: (source, target) =>
     set({ sourceLanguage: source, targetLanguage: target }),
   setLoading: (loading) => set({ isLoading: loading }),
+  setPinned: (pinned) => set({ isPinned: pinned }),
+  togglePinned: () => set((state) => ({ isPinned: !state.isPinned })),
   reset: () =>
     set({
       isVisible: false,
@@ -58,5 +67,6 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       originalText: "",
       translatedText: "",
       isLoading: false,
+      isPinned: false,
     }),
 }));
