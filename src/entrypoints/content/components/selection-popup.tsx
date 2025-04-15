@@ -7,6 +7,7 @@ import {
 } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { useSelectionStore } from "@/store/selection";
+import { useTranslationStore } from "@/store/translation";
 import {
   autoUpdate,
   flip,
@@ -20,6 +21,11 @@ import { useEffect, useRef } from "react";
 
 export function SelectionPopup() {
   const { position, isVisible, setVisibility } = useSelectionStore();
+  const {
+    setVisibility: setTranslationVisibility,
+    setPosition: setTranslationPosition,
+    setOriginalText,
+  } = useTranslationStore();
 
   const portalRef = useRef<HTMLElement | null>(null);
   const shadowRootRef = useRef<ShadowRoot | null>(null);
@@ -59,8 +65,20 @@ export function SelectionPopup() {
       icon: <TranslateIcon />,
       tooltip: "翻译",
       action: () => {
-        // 翻译功能
-        console.log("翻译");
+        // 获取选中文本
+        const selectedText = window.getSelection()?.toString() || "";
+
+        // 先设置翻译面板的所有数据
+        setOriginalText(selectedText);
+        if (position) {
+          setTranslationPosition(position);
+        }
+
+        // 再设置面板可见性，确保先显示翻译面板
+        setTranslationVisibility(true);
+
+        // 最后隐藏划词气泡
+        setVisibility(false);
       },
     },
     {
