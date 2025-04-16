@@ -10,6 +10,7 @@ export interface SSEConfig extends RequestConfig {
   onChunk?: (chunk: any, event: MessageEvent) => void;
   onOpen?: (event: Event) => void;
   onError?: (error: Event) => void;
+  onRequestInit?: (requestId: string) => void; // 请求初始化时的回调，提供requestId
   eventType?: string; // 指定要监听的事件类型，默认为'message'
 }
 
@@ -119,24 +120,62 @@ function createFetchStream<T>(
 
           // 解码二进制数据
           const chunk = decoder.decode(value, { stream: true });
+          console.log("SSE raw chunk:", chunk);
 
           // 处理块数据 (可能包含多个JSON对象)
           const lines = chunk.split("\n").filter((line) => line.trim() !== "");
 
           for (const line of lines) {
             try {
+              // 处理data:前缀的行
               if (line.startsWith("data:")) {
-                const jsonStr = line.slice(5).trim();
-                const data = JSON.parse(jsonStr);
-                controller.enqueue(data as T);
+                const dataContent = line.slice(5).trim();
+
+                // 特殊处理[DONE]标记
+                if (dataContent === "[DONE]") {
+                  console.log("SSE stream completed with [DONE] marker");
+                  // 不需要将[DONE]放入流中，只需要标记结束
+                  // 这里不调用controller.close()以便上层代码能继续读取之前的数据
+                  continue;
+                }
+
+                try {
+                  // 尝试将数据解析为JSON
+                  const data = JSON.parse(dataContent);
+                  console.log("SSE parsed data:", data);
+                  controller.enqueue(data as T);
+
+                  // 如果提供了onChunk回调，调用它
+                  if (fetchConfig.onChunk) {
+                    fetchConfig.onChunk(data, { data: dataContent } as any);
+                  }
+                } catch (parseError) {
+                  console.error(
+                    "Error parsing SSE JSON data:",
+                    parseError,
+                    "Raw data:",
+                    dataContent
+                  );
+                  // 可选：如果解析失败但仍希望将原始数据传递出去
+                  // controller.enqueue({ raw: dataContent } as unknown as T);
+                }
+              } else if (line.trim() !== "") {
+                // 处理不以data:开头但非空的行，记录日志
+                console.log("SSE non-data line:", line);
               }
-            } catch (error) {
-              console.error("Error parsing SSE data:", error);
+            } catch (lineError) {
+              console.error(
+                "Error processing SSE line:",
+                lineError,
+                "Line:",
+                line
+              );
             }
           }
         }
       } catch (error) {
         // 处理fetch错误
+        console.error("SSE fetch error:", error);
         if (signal.aborted) {
           controller.close();
         } else {
@@ -167,7 +206,8 @@ export const sse =
       } else {
         // 使用fetch流
         const fetchConfig = createRequestConfig(config, {
-          method: "GET",
+          // 尊重用户传入的method，如果没有设置则默认为GET
+          method: config.method || "GET",
           headers: {
             Accept: "text/event-stream",
             ...config.headers,

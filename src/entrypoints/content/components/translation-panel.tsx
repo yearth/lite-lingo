@@ -29,8 +29,10 @@ export function TranslationPanel() {
     targetLanguage,
     isLoading,
     isPinned,
+    activeRequestId,
     setVisibility,
     togglePinned,
+    setActiveRequestId,
   } = useTranslationStore();
   const { setVisibility: setSelectionVisibility } = useSelectionStore();
 
@@ -101,6 +103,15 @@ export function TranslationPanel() {
   }, [isVisible, position]);
 
   const handleClose = () => {
+    if (activeRequestId) {
+      console.log("[ Lite Lingo ] 取消活跃的翻译请求:", activeRequestId);
+      chrome.runtime.sendMessage({
+        type: "API_SSE_CANCEL",
+        requestId: activeRequestId,
+      });
+      setActiveRequestId(null);
+    }
+
     setVisibility(false);
     setSelectionVisibility(false);
   };

@@ -22,6 +22,8 @@ interface TranslationState {
   isLoading: boolean;
   // 是否固定面板
   isPinned: boolean;
+  // 当前活跃的SSE请求ID
+  activeRequestId: string | null;
   // 设置可见性
   setVisibility: (visible: boolean) => void;
   // 设置位置
@@ -38,6 +40,8 @@ interface TranslationState {
   setPinned: (pinned: boolean) => void;
   // 切换固定状态
   togglePinned: () => void;
+  // 设置活跃的SSE请求ID
+  setActiveRequestId: (requestId: string | null) => void;
   // 重置状态
   reset: () => void;
 }
@@ -51,6 +55,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   targetLanguage: "zh-CN",
   isLoading: false,
   isPinned: false,
+  activeRequestId: null,
   setVisibility: (visible) => set({ isVisible: visible }),
   setPosition: (position) => set({ position }),
   setOriginalText: (text) => set({ originalText: text }),
@@ -63,6 +68,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setPinned: (pinned) => set({ isPinned: pinned }),
   togglePinned: () => set((state) => ({ isPinned: !state.isPinned })),
+  setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
   reset: () =>
     set({
       isVisible: false,
@@ -71,5 +77,6 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       translatedText: "",
       isLoading: false,
       isPinned: false,
+      activeRequestId: null,
     }),
 }));

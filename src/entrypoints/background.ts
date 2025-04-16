@@ -1,20 +1,23 @@
-import { QueryClient } from "@tanstack/react-query";
+import { api } from "@/services/api/instance";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // 数据在 5 分钟内保持新鲜
-      staleTime: 1000 * 60 * 5,
-      // 缓存数据在 15 分钟后被垃圾回收
-      gcTime: 1000 * 60 * 15, // 更新 gcTime
-      // 失败时默认重试一次
-      retry: 1,
-    },
-    mutations: {
-      // 可以为 mutations 设置默认选项
-    },
-  },
-});
+// 存储活跃的SSE请求
+const activeSSERequests = new Map<string, AbortController>();
+
+// const queryClient = new QueryClient({
+//   defaultOptions: {
+//     queries: {
+//       // 数据在 5 分钟内保持新鲜
+//       staleTime: 1000 * 60 * 5,
+//       // 缓存数据在 15 分钟后被垃圾回收
+//       gcTime: 1000 * 60 * 15, // 更新 gcTime
+//       // 失败时默认重试一次
+//       retry: 1,
+//     },
+//     mutations: {
+//       // 可以为 mutations 设置默认选项
+//     },
+//   },
+// });
 
 console.log("[Background] QueryClient initialized.");
 
@@ -42,7 +45,7 @@ export default defineBackground(() => {
       sender: any,
       sendResponse: (response: any) => void
     ): boolean => {
-      // 处理API请求
+      // 处理普通API请求
       if (message.type === "API_REQUEST") {
         const { url, method = "GET", data } = message;
 
@@ -80,7 +83,167 @@ export default defineBackground(() => {
         return true; // 保持消息通道开放
       }
 
-      return true;
+      // 处理SSE流式请求
+      if (message.type === "API_SSE_REQUEST") {
+        const { requestId, url, config } = message;
+        const tabId = sender.tab?.id;
+
+        if (!tabId) {
+          console.error("[Background] 无法确定SSE请求的标签页ID");
+          return false;
+        }
+
+        console.log(`[Background] 处理SSE请求: ${requestId}`, url, config);
+
+        try {
+          // 创建AbortController用于取消请求
+          const controller = new AbortController();
+          activeSSERequests.set(requestId, controller);
+
+          // 准备SSE配置
+          const sseConfig = {
+            ...config,
+            signal: controller.signal,
+            onChunk: (chunk: any, event: any) => {
+              // 将数据块发送回content script
+              console.log(`[Background] SSE数据块: ${requestId}`, chunk);
+
+              chrome.tabs
+                .sendMessage(tabId, {
+                  type: "SSE_CHUNK",
+                  requestId,
+                  data: chunk,
+                })
+                .catch((err) => {
+                  console.error(
+                    `[Background] 发送SSE数据块失败: ${requestId}`,
+                    err
+                  );
+                });
+            },
+            onError: (error: any) => {
+              // 发送错误消息
+              console.error(`[Background] SSE错误: ${requestId}`, error);
+
+              chrome.tabs
+                .sendMessage(tabId, {
+                  type: "SSE_ERROR",
+                  requestId,
+                  error: error.message || "SSE连接错误",
+                })
+                .catch((err) => {
+                  console.error(
+                    `[Background] 发送SSE错误消息失败: ${requestId}`,
+                    err
+                  );
+                });
+
+              // 清理请求
+              activeSSERequests.delete(requestId);
+            },
+          };
+
+          // 提取路径部分(去掉基础URL)
+          const path = new URL(url).pathname + new URL(url).search;
+
+          // 使用API客户端的sse方法发起请求
+          console.log(
+            `[Background] 启动SSE请求: ${requestId}`,
+            path,
+            sseConfig
+          );
+          const stream = api.sse(path, sseConfig);
+
+          // 处理流结束
+          const reader = stream.getReader();
+          (async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  console.log(`[Background] SSE流正常结束: ${requestId}`);
+                  break;
+                }
+
+                console.log(`[Background] SSE流数据: ${requestId}`, value);
+                // 注意：onChunk回调已经处理了数据发送
+              }
+
+              // 流正常结束
+              chrome.tabs
+                .sendMessage(tabId, {
+                  type: "SSE_COMPLETE",
+                  requestId,
+                })
+                .catch((err) => {
+                  console.error(
+                    `[Background] 发送SSE完成消息失败: ${requestId}`,
+                    err
+                  );
+                });
+
+              // 清理请求
+              activeSSERequests.delete(requestId);
+            } catch (error) {
+              console.error(`[Background] SSE读取错误: ${requestId}`, error);
+
+              // 发送错误消息
+              chrome.tabs
+                .sendMessage(tabId, {
+                  type: "SSE_ERROR",
+                  requestId,
+                  error:
+                    error instanceof Error ? error.message : "SSE流读取错误",
+                })
+                .catch((err) => {
+                  console.error(
+                    `[Background] 发送SSE错误消息失败: ${requestId}`,
+                    err
+                  );
+                });
+
+              // 清理请求
+              activeSSERequests.delete(requestId);
+            }
+          })();
+        } catch (error) {
+          console.error(`[Background] 启动SSE请求失败: ${requestId}`, error);
+
+          chrome.tabs
+            .sendMessage(tabId, {
+              type: "SSE_ERROR",
+              requestId,
+              error: error instanceof Error ? error.message : "启动SSE连接失败",
+            })
+            .catch((err) => {
+              console.error(
+                `[Background] 发送SSE错误消息失败: ${requestId}`,
+                err
+              );
+            });
+        }
+
+        return false; // 不保持消息通道开放，使用单向消息
+      }
+
+      // 处理取消SSE请求
+      if (message.type === "API_SSE_CANCEL") {
+        const { requestId } = message;
+        console.log(`[Background] 取消SSE请求: ${requestId}`);
+
+        const controller = activeSSERequests.get(requestId);
+        if (controller) {
+          controller.abort();
+          activeSSERequests.delete(requestId);
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false, error: "未找到活跃的SSE请求" });
+        }
+
+        return false;
+      }
+
+      return false;
     }
   );
 

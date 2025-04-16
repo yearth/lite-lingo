@@ -53,7 +53,7 @@ export type { ApiError, ApiResponse, ResponseInterceptor };
  * 方便直接导入使用
  */
 export const defaultApiClient = createApiClient({
-  baseUrl: "http://localhost:3000", // 直接硬编码API地址，不再使用process.env
+  baseUrl: "http://127.0.0.1:3000", // 直接硬编码API地址，不再使用process.env
 });
 
 /**

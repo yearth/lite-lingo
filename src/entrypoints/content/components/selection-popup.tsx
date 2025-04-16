@@ -6,7 +6,7 @@ import {
   TranslateIcon,
 } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
-import { backgroundGet } from "@/services/api/instance";
+import { backgroundSSE } from "@/services/api/instance";
 import { useSelectionStore } from "@/store/selection";
 import { useTranslationStore } from "@/store/translation";
 import {
@@ -28,6 +28,7 @@ export function SelectionPopup() {
     setOriginalText,
     setTranslatedText,
     setLoading,
+    setActiveRequestId,
   } = useTranslationStore();
 
   const portalRef = useRef<HTMLElement | null>(null);
@@ -85,18 +86,117 @@ export function SelectionPopup() {
         setTranslationVisibility(true);
 
         try {
-          // 使用background脚本处理API请求，避免CORS问题
-          // 由于已经有了响应拦截器，可以直接获取处理后的数据
-          const translatedText = await backgroundGet<string>("/v1/app");
+          console.log("[ Lite Lingo ] 发起流式翻译请求");
 
-          // 更新翻译结果
-          setTranslatedText(translatedText);
+          // 设置初始翻译状态
+          setTranslatedText("正在翻译...");
+
+          // 创建请求配置
+          const sseConfig = {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Accept-Version": "2",
+            },
+            body: JSON.stringify({
+              text: selectedText,
+              // 所有可选参数暂时不传
+            }),
+            useEventSource: false, // 使用fetch流处理
+            onRequestInit: (reqId: string) => {
+              // 保存请求ID到状态
+              console.log("[ Lite Lingo ] 保存翻译请求ID:", reqId);
+              setActiveRequestId(reqId);
+            },
+          };
+
+          // 使用backgroundSSE发起流式请求
+          console.log("[ Lite Lingo ] 配置SSE请求:", sseConfig);
+          const { stream, requestId } = backgroundSSE<any>(
+            "/v2/translate/stream",
+            sseConfig
+          );
+
+          // 如果onRequestInit回调没有触发，这里再次保存requestId
+          if (requestId) {
+            console.log("[ Lite Lingo ] 确保保存翻译请求ID:", requestId);
+            setActiveRequestId(requestId);
+          }
+
+          // 读取流数据
+          const reader = stream.getReader();
+          let completeTranslation = "";
+          let hasReceivedData = false;
+
+          // 处理流数据
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+
+              if (done) {
+                console.log("[ Lite Lingo ] 翻译流结束");
+                break;
+              }
+
+              // 记录每个数据块
+              console.log("[ Lite Lingo ] 翻译数据块:", value);
+              hasReceivedData = true;
+
+              // 从value中提取文本内容
+              let textChunk = "";
+              if (value && value.data && value.data.text) {
+                textChunk = value.data.text;
+              } else if (value && value.text) {
+                textChunk = value.text;
+              } else if (typeof value === "string") {
+                textChunk = value;
+              } else {
+                console.warn("[ Lite Lingo ] 无法从数据块中提取文本:", value);
+                // 尝试将整个对象转为字符串
+                textChunk = JSON.stringify(value);
+              }
+
+              if (textChunk) {
+                completeTranslation += textChunk;
+                // 更新UI显示当前翻译结果
+                setTranslatedText(completeTranslation);
+              }
+            }
+          } catch (streamError) {
+            console.error("[ Lite Lingo ] 处理翻译流时出错:", streamError);
+
+            // 如果已经收到了一些数据，显示已翻译的部分
+            if (hasReceivedData && completeTranslation) {
+              setTranslatedText(completeTranslation + " (翻译中断)");
+            } else {
+              setTranslatedText(
+                `处理翻译流出错: ${
+                  streamError instanceof Error
+                    ? streamError.message
+                    : "未知错误"
+                }`
+              );
+            }
+
+            // 不抛出异常，因为我们已经处理了错误
+          }
+
+          // 流结束后，确保显示完整翻译结果
+          if (completeTranslation) {
+            console.log("[ Lite Lingo ] 完整翻译结果:", completeTranslation);
+            setTranslatedText(completeTranslation);
+          } else if (!hasReceivedData) {
+            setTranslatedText("翻译完成，但未返回内容");
+          }
         } catch (error) {
-          // 处理异常，ApiError已经被拦截器处理
-          console.error("翻译请求失败:", error);
+          // 处理异常
+          console.error("[ Lite Lingo ] 翻译请求失败:", error);
           setTranslatedText(
             `请求失败: ${error instanceof Error ? error.message : "未知错误"}`
           );
+
+          // 清除请求ID
+          setActiveRequestId(null);
         } finally {
           // 重置加载状态
           setLoading(false);
