@@ -135,7 +135,7 @@ export function backgroundSSE<T>(
   }
 
   // 创建可读流
-  const stream = new ReadableStream<T>({
+  const originalStream = new ReadableStream<T>({
     start(controller) {
       let isStreamActive = true;
 
@@ -239,5 +239,49 @@ export function backgroundSSE<T>(
     },
   });
 
-  return { stream, requestId };
+  // 创建一个TransformStream来处理JSON解析
+  const transformStream = new TransformStream({
+    transform(chunk, controller) {
+      // 先检查是否为特殊标记[DONE]
+      if (typeof chunk === "string" && chunk.trim() === "[DONE]") {
+        console.log("[ Api Client ] 收到流结束标记 [DONE]");
+        // 不向下游传递这个特殊标记
+        return;
+      }
+
+      // 解析JSON字符串
+      let parsedChunk: any = chunk;
+      if (typeof chunk === "string") {
+        try {
+          parsedChunk = JSON.parse(chunk);
+          console.log("[ Api Client ] 解析后的SSE数据:", parsedChunk);
+
+          // 应用标准响应拦截器
+          if (parsedChunk && parsedChunk.code === 0 && parsedChunk.data) {
+            // 只传递data部分给下游
+            controller.enqueue(parsedChunk.data);
+          } else {
+            // 错误处理或保持原样
+            controller.enqueue(chunk);
+          }
+        } catch (parseError) {
+          console.warn(
+            "[ Api Client ] SSE数据JSON解析失败:",
+            parseError,
+            chunk
+          );
+          // 解析失败时传递原始chunk
+          controller.enqueue(chunk);
+        }
+      } else {
+        // 非字符串类型直接传递
+        controller.enqueue(chunk);
+      }
+    },
+  });
+
+  // 将原始流通过transformStream处理
+  const transformedStream = originalStream.pipeThrough(transformStream);
+
+  return { stream: transformedStream, requestId };
 }

@@ -1,3 +1,4 @@
+import { ParsedSection } from "@/services/parser/types";
 import { create } from "zustand";
 
 interface Position {
@@ -24,6 +25,8 @@ interface TranslationState {
   isPinned: boolean;
   // 当前活跃的SSE请求ID
   activeRequestId: string | null;
+  // 解析后的内容
+  parsedContent: Partial<ParsedSection>;
   // 设置可见性
   setVisibility: (visible: boolean) => void;
   // 设置位置
@@ -42,6 +45,8 @@ interface TranslationState {
   togglePinned: () => void;
   // 设置活跃的SSE请求ID
   setActiveRequestId: (requestId: string | null) => void;
+  // 更新解析内容
+  updateParsedContent: (section: keyof ParsedSection, data: any) => void;
   // 重置状态
   reset: () => void;
 }
@@ -56,6 +61,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   isLoading: false,
   isPinned: false,
   activeRequestId: null,
+  parsedContent: {},
   setVisibility: (visible) => set({ isVisible: visible }),
   setPosition: (position) => set({ position }),
   setOriginalText: (text) => set({ originalText: text }),
@@ -69,6 +75,13 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   setPinned: (pinned) => set({ isPinned: pinned }),
   togglePinned: () => set((state) => ({ isPinned: !state.isPinned })),
   setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
+  updateParsedContent: (section, data) =>
+    set((state) => ({
+      parsedContent: {
+        ...state.parsedContent,
+        [section]: data,
+      },
+    })),
   reset: () =>
     set({
       isVisible: false,
@@ -78,5 +91,6 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       isLoading: false,
       isPinned: false,
       activeRequestId: null,
+      parsedContent: {},
     }),
 }));
