@@ -14,6 +14,11 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 
+// 内联CSS组件
+const InlineStyle = ({ css }: { css: string }) => (
+  <style dangerouslySetInnerHTML={{ __html: css }} />
+);
+
 export function TranslationPanel() {
   const {
     isVisible,
@@ -133,6 +138,35 @@ export function TranslationPanel() {
     }
   }, [isVisible, resetDragOffset]);
 
+  // 自定义滚动条CSS
+  const scrollbarCSS = `
+    /* 给结果区域添加自定义滚动条 */
+    .result-content::-webkit-scrollbar {
+      width: 2px !important;
+      height: 0px !important;
+    }
+    .result-content::-webkit-scrollbar-track {
+      background-color: transparent !important;
+    }
+    .result-content::-webkit-scrollbar-thumb {
+      background-color: transparent !important;
+      border-radius: 2px !important;
+      transition: background-color 0.2s ease-in-out !important;
+    }
+    .result-content:hover::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.15) !important;
+    }
+    /* 确保Firefox也有同样的效果 */
+    .result-content {
+      scrollbar-width: thin !important;
+      scrollbar-color: transparent transparent !important;
+      transition: scrollbar-color 0.2s ease-in-out !important;
+    }
+    .result-content:hover {
+      scrollbar-color: rgba(0, 0, 0, 0.15) transparent !important;
+    }
+  `;
+
   if (!portalRef.current) return null;
 
   const combinedStyles = {
@@ -145,6 +179,9 @@ export function TranslationPanel() {
 
   return (
     <FloatingPortal root={portalRef.current}>
+      {/* 添加滚动条样式 */}
+      <InlineStyle css={scrollbarCSS} />
+
       <AnimatePresence>
         {isVisible && (
           <div
@@ -155,16 +192,16 @@ export function TranslationPanel() {
           >
             <motion.div
               ref={panelRef}
-              className="bg-white rounded-lg shadow-lg select-none flex flex-col overflow-hidden will-change-transform"
+              className="bg-white rounded-lg shadow-lg select-none flex flex-col overflow-hidden will-change-transform text-gray-800"
               style={{
                 width: "360px",
                 boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
                 cursor: isDragging ? "grabbing" : "default",
                 position: "relative",
               }}
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
               transition={{
                 duration: 0.1,
                 ease: "easeOut",
@@ -173,9 +210,7 @@ export function TranslationPanel() {
               <div
                 className="panel-handle absolute top-0 left-0 right-0 h-6 flex items-center justify-center cursor-grab z-10"
                 style={{
-                  backgroundColor: isDragging
-                    ? "rgba(0,0,0,0.05)"
-                    : "transparent",
+                  backgroundColor: "transparent",
                   borderTopLeftRadius: "8px",
                   borderTopRightRadius: "8px",
                 }}
@@ -199,7 +234,7 @@ export function TranslationPanel() {
 
               <div className="p-3 pt-6 border-b border-gray-100 flex items-center justify-start bg-white">
                 <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-medium">翻译</h3>
+                  <h3 className="text-sm font-medium text-gray-800">翻译</h3>
                   <div className="text-xs text-gray-500 flex items-center">
                     <span>
                       {sourceLanguage === "auto" ? "自动检测" : sourceLanguage}
@@ -210,20 +245,20 @@ export function TranslationPanel() {
                 </div>
               </div>
 
-              <div className="flex flex-col flex-1 overflow-auto">
+              <div className="flex flex-col flex-1 overflow-hidden">
                 <div className="p-3 bg-gray-50">
                   <p className="text-sm text-gray-700">
                     {originalText || "无内容"}
                   </p>
                 </div>
 
-                <div className="p-3 flex-1 min-h-[100px]">
+                <div className="p-3 flex-1 min-h-[100px] max-h-[120px] bg-white overflow-y-auto overflow-x-hidden result-content">
                   {isLoading ? (
                     <div className="flex items-center justify-center h-full">
                       <span className="text-sm text-gray-500">翻译中...</span>
                     </div>
                   ) : (
-                    <p className="text-sm">
+                    <p className="text-sm text-gray-700 break-words">
                       {translatedText ? translatedText : "等待翻译..."}
                       <br />
                       <span className="text-xs text-gray-400">
@@ -235,6 +270,20 @@ export function TranslationPanel() {
                           isDragging,
                           dragOffset,
                         })}
+                      </span>
+                      {/* 测试滚动区域 */}
+                      <span className="block mt-2 text-xs text-gray-400">
+                        测试滚动 1<br />
+                        测试滚动 2<br />
+                        测试滚动 3<br />
+                        测试滚动 4<br />
+                        测试滚动 5<br />
+                        测试滚动 6<br />
+                        测试滚动 7<br />
+                        测试滚动 8<br />
+                        测试滚动 9<br />
+                        测试滚动 10
+                        <br />
                       </span>
                     </p>
                   )}
