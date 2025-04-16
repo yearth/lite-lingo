@@ -258,18 +258,18 @@ export function TranslationPanel() {
 
               <div className="flex flex-col flex-1 overflow-hidden">
                 <div className="p-3 bg-gray-50">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-gray-700 select-text">
                     {originalText || "无内容"}
                   </p>
                 </div>
 
-                <div className="p-3 flex-1 min-h-[100px] max-h-[120px] bg-white overflow-y-auto overflow-x-hidden result-content">
+                <div className="p-3 flex-1 min-h-[100px] max-h-[160px] bg-white overflow-y-auto overflow-x-hidden result-content">
                   {isLoading ? (
                     <div className="flex items-center justify-center h-full">
                       <span className="text-sm text-gray-500">翻译中...</span>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-700 break-words">
+                    <p className="text-sm text-gray-700 break-words select-text">
                       {translatedText ? translatedText : "等待翻译..."}
                       <br />
                       <span className="text-xs text-gray-400">
@@ -281,20 +281,6 @@ export function TranslationPanel() {
                           isDragging,
                           dragOffset,
                         })}
-                      </span>
-                      {/* 测试滚动区域 */}
-                      <span className="block mt-2 text-xs text-gray-400">
-                        测试滚动 1<br />
-                        测试滚动 2<br />
-                        测试滚动 3<br />
-                        测试滚动 4<br />
-                        测试滚动 5<br />
-                        测试滚动 6<br />
-                        测试滚动 7<br />
-                        测试滚动 8<br />
-                        测试滚动 9<br />
-                        测试滚动 10
-                        <br />
                       </span>
                     </p>
                   )}
