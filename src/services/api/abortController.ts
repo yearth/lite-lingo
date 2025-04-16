@@ -1,7 +1,7 @@
 /**
  * 请求取消管理模块
  */
-import { generateRequestId } from "./utils";
+import { ResponseInterceptor, generateRequestId } from "./utils";
 
 // 存储活跃请求的Map
 const activeRequests = new Map<string, AbortController>();
@@ -13,6 +13,7 @@ export interface RequestConfig {
   signal?: AbortSignal;
   timeout?: number;
   requestId?: string;
+  responseInterceptor?: ResponseInterceptor; // 响应拦截器
   [key: string]: any;
 }
 

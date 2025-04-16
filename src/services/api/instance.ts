@@ -3,6 +3,10 @@
  * 提供全局单例API客户端
  */
 import { createApiClient } from "./index";
+import { createStandardResponseInterceptor } from "./utils";
+
+// 创建标准响应拦截器
+const standardInterceptor = createStandardResponseInterceptor();
 
 // 创建全局API客户端实例
 export const api = createApiClient({
@@ -11,6 +15,7 @@ export const api = createApiClient({
     Accept: "application/json", // 移除Content-Type头，将由createRequestConfig根据请求方法决定是否添加
   },
   defaultTimeout: 30000, // 30秒超时
+  responseInterceptor: standardInterceptor, // 使用标准响应拦截器
 });
 
 // 导出常用方法便于直接使用
@@ -48,10 +53,15 @@ export async function backgroundGet<T>(
           return;
         }
 
-        if (response.success) {
-          resolve(response.data);
-        } else {
-          reject(new Error(response.error || "请求失败"));
+        try {
+          // 使用拦截器处理响应
+          if (response.success) {
+            resolve(standardInterceptor<T>(response.data));
+          } else {
+            reject(new Error(response.error || "请求失败"));
+          }
+        } catch (error) {
+          reject(error);
         }
       }
     );

@@ -21,7 +21,7 @@ export const get =
       });
 
       const response = await fetch(url, fetchConfig);
-      return await handleResponse<T>(response);
+      return await handleResponse<T>(response, config.responseInterceptor);
     } catch (error) {
       return handleError(error, requestId);
     } finally {
@@ -49,7 +49,7 @@ export const post =
       });
 
       const response = await fetch(url, fetchConfig);
-      return await handleResponse<T>(response);
+      return await handleResponse<T>(response, config.responseInterceptor);
     } catch (error) {
       return handleError(error, requestId);
     }
@@ -75,7 +75,7 @@ export const put =
       });
 
       const response = await fetch(url, fetchConfig);
-      return await handleResponse<T>(response);
+      return await handleResponse<T>(response, config.responseInterceptor);
     } catch (error) {
       return handleError(error, requestId);
     }
@@ -96,7 +96,7 @@ export const del =
       });
 
       const response = await fetch(url, fetchConfig);
-      return await handleResponse<T>(response);
+      return await handleResponse<T>(response, config.responseInterceptor);
     } catch (error) {
       return handleError(error, requestId);
     }
@@ -122,7 +122,7 @@ export const patch =
       });
 
       const response = await fetch(url, fetchConfig);
-      return await handleResponse<T>(response);
+      return await handleResponse<T>(response, config.responseInterceptor);
     } catch (error) {
       return handleError(error, requestId);
     }

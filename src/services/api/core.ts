@@ -2,6 +2,7 @@
  * API核心请求配置模块
  */
 import { RequestConfig } from "./abortController";
+import { ResponseInterceptor } from "./utils";
 
 // 默认请求头
 const defaultHeaders = {
@@ -35,7 +36,7 @@ export const createRequestConfig = (
 
   // 避免请求配置中包含requestId，因为它不是Fetch API的一部分
   // 我们只需要在我们自己的管理系统中使用它
-  const { requestId, ...fetchConfig } = mergedConfig;
+  const { requestId, responseInterceptor, ...fetchConfig } = mergedConfig;
 
   // 只有非GET请求才添加Content-Type头
   const method = (customConfig.method || "GET").toUpperCase();
@@ -53,6 +54,7 @@ export interface ApiClientConfig {
   baseUrl: string;
   defaultHeaders?: Record<string, string>;
   defaultTimeout?: number;
+  responseInterceptor?: ResponseInterceptor; // 新增：响应拦截器
 }
 
 /**
@@ -64,7 +66,12 @@ export const createApiConfig = (
   baseUrl: string;
   baseConfig: RequestConfig;
 } => {
-  const { baseUrl, defaultHeaders = {}, defaultTimeout } = config;
+  const {
+    baseUrl,
+    defaultHeaders = {},
+    defaultTimeout,
+    responseInterceptor,
+  } = config;
 
   // 创建基础配置
   const baseConfig: RequestConfig = {
@@ -73,6 +80,10 @@ export const createApiConfig = (
 
   if (defaultTimeout) {
     baseConfig.timeout = defaultTimeout;
+  }
+
+  if (responseInterceptor) {
+    baseConfig.responseInterceptor = responseInterceptor;
   }
 
   return {

@@ -6,6 +6,11 @@ import { cancelAllRequests, cancelRequest } from "./abortController";
 import { ApiClientConfig, createApiConfig } from "./core";
 import { del, get, patch, post, put } from "./http";
 import { sse } from "./sse";
+import { ApiError, ApiResponse } from "./types";
+import {
+  ResponseInterceptor,
+  createStandardResponseInterceptor,
+} from "./utils";
 
 /**
  * 创建API客户端
@@ -40,6 +45,8 @@ export const createApiClient = (config: ApiClientConfig) => {
 export type { RequestConfig } from "./abortController";
 export type { ApiClientConfig } from "./core";
 export type { SSEConfig } from "./sse";
+export { createStandardResponseInterceptor };
+export type { ApiError, ApiResponse, ResponseInterceptor };
 
 /**
  * 默认API客户端

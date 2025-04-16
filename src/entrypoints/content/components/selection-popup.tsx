@@ -86,27 +86,17 @@ export function SelectionPopup() {
 
         try {
           // 使用background脚本处理API请求，避免CORS问题
-          const response = await backgroundGet<{
-            code: string;
-            message: string;
-            data: string;
-          }>("/v1/app");
+          // 由于已经有了响应拦截器，可以直接获取处理后的数据
+          const translatedText = await backgroundGet<string>("/v1/app");
 
-          // 打印响应，检查是否正确接收
-          console.log("翻译API响应:", response);
-
-          // 检查响应
-          if (response.code === "0") {
-            // 更新翻译结果
-            setTranslatedText(response.data);
-          } else {
-            // 处理错误
-            setTranslatedText(`错误: ${response.message}`);
-          }
+          // 更新翻译结果
+          setTranslatedText(translatedText);
         } catch (error) {
-          // 处理异常
+          // 处理异常，ApiError已经被拦截器处理
           console.error("翻译请求失败:", error);
-          setTranslatedText("请求失败，请稍后重试");
+          setTranslatedText(
+            `请求失败: ${error instanceof Error ? error.message : "未知错误"}`
+          );
         } finally {
           // 重置加载状态
           setLoading(false);
