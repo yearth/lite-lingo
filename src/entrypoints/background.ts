@@ -1,4 +1,5 @@
 import { api } from "@/services/api/instance";
+import { createSSEMessageHandler } from "@/services/api/sse-message-handler";
 
 // 存储活跃的SSE请求
 const activeSSERequests = new Map<string, AbortController>();
@@ -100,19 +101,19 @@ export default defineBackground(() => {
           const controller = new AbortController();
           activeSSERequests.set(requestId, controller);
 
-          // 准备SSE配置
-          const sseConfig = {
-            ...config,
-            signal: controller.signal,
-            onChunk: (chunk: any, event: any) => {
-              // 将数据块发送回content script
-              console.log(`[Background] SSE数据块: ${requestId}`, chunk);
+          // 创建消息处理器
+          const messageHandler = createSSEMessageHandler({
+            onData: (section, data) => {
+              console.log(`[Background] SSE数据块: ${requestId}`, {
+                section,
+                data,
+              });
 
               chrome.tabs
                 .sendMessage(tabId, {
                   type: "SSE_CHUNK",
                   requestId,
-                  data: chunk,
+                  data: { section, data },
                 })
                 .catch((err) => {
                   console.error(
@@ -121,8 +122,7 @@ export default defineBackground(() => {
                   );
                 });
             },
-            onError: (error: any) => {
-              // 发送错误消息
+            onError: (error) => {
               console.error(`[Background] SSE错误: ${requestId}`, error);
 
               chrome.tabs
@@ -140,6 +140,75 @@ export default defineBackground(() => {
 
               // 清理请求
               activeSSERequests.delete(requestId);
+            },
+            onComplete: () => {
+              console.log(`[Background] SSE流正常结束: ${requestId}`);
+
+              chrome.tabs
+                .sendMessage(tabId, {
+                  type: "SSE_COMPLETE",
+                  requestId,
+                })
+                .catch((err) => {
+                  console.error(
+                    `[Background] 发送SSE完成消息失败: ${requestId}`,
+                    err
+                  );
+                });
+
+              // 清理请求
+              activeSSERequests.delete(requestId);
+            },
+          });
+
+          // 准备SSE配置
+          const sseConfig = {
+            ...config,
+            signal: controller.signal,
+            onChunk: (chunk: any) => {
+              console.log("[Background] SSE数据块:", chunk);
+
+              // 检查是否为包含模式信息的新格式数据
+              if (chunk && typeof chunk === "object" && "isJsonMode" in chunk) {
+                console.log(
+                  `[Background] 检测到新格式数据，模式: ${
+                    chunk.isJsonMode ? "JSON" : "文本"
+                  }`
+                );
+
+                if (chunk.isJsonMode) {
+                  // JSON模式 - 传递给解析器
+                  messageHandler.handleChunk(chunk.content);
+                } else {
+                  // 文本模式 - 直接发送到前端，绕过解析器
+                  console.log(
+                    `[Background] 文本模式，直接发送到前端: ${chunk.content.substring(
+                      0,
+                      50
+                    )}...`
+                  );
+                  chrome.tabs
+                    .sendMessage(tabId, {
+                      type: "SSE_CHUNK",
+                      requestId,
+                      data: { text: chunk.content, isTextMode: true },
+                    })
+                    .catch((err) => {
+                      console.error(
+                        `[Background] 发送文本模式数据失败: ${requestId}`,
+                        err
+                      );
+                    });
+                }
+              } else {
+                // 兼容旧格式 - 传递给解析器
+                messageHandler.handleChunk(chunk);
+              }
+            },
+            onError: (error: any) => {
+              messageHandler.handleError(
+                error instanceof Error ? error : new Error(String(error))
+              );
             },
           };
 
@@ -160,50 +229,17 @@ export default defineBackground(() => {
             try {
               while (true) {
                 const { done, value } = await reader.read();
-                if (done) {
-                  console.log(`[Background] SSE流正常结束: ${requestId}`);
-                  break;
-                }
-
-                console.log(`[Background] SSE流数据: ${requestId}`, value);
-                // 注意：onChunk回调已经处理了数据发送
-              }
-
-              // 流正常结束
-              chrome.tabs
-                .sendMessage(tabId, {
-                  type: "SSE_COMPLETE",
-                  requestId,
-                })
-                .catch((err) => {
-                  console.error(
-                    `[Background] 发送SSE完成消息失败: ${requestId}`,
-                    err
-                  );
+                console.log(`[Background] SSE读取数据: ${requestId}`, {
+                  done,
+                  value,
                 });
-
-              // 清理请求
-              activeSSERequests.delete(requestId);
+                if (done) break;
+              }
             } catch (error) {
               console.error(`[Background] SSE读取错误: ${requestId}`, error);
-
-              // 发送错误消息
-              chrome.tabs
-                .sendMessage(tabId, {
-                  type: "SSE_ERROR",
-                  requestId,
-                  error:
-                    error instanceof Error ? error.message : "SSE流读取错误",
-                })
-                .catch((err) => {
-                  console.error(
-                    `[Background] 发送SSE错误消息失败: ${requestId}`,
-                    err
-                  );
-                });
-
-              // 清理请求
-              activeSSERequests.delete(requestId);
+              messageHandler.handleError(
+                error instanceof Error ? error : new Error(String(error))
+              );
             }
           })();
         } catch (error) {

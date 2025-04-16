@@ -109,6 +109,11 @@ function createFetchStream<T>(
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
+        // 流状态跟踪
+        let isFirstChunk = true; // 标记第一个数据块
+        let isJsonMode = null; // 处理模式(null=未知, true=JSON, false=文本)
+        let accumulatedText = ""; // 用于纯文本模式下累积内容
+
         // 读取流数据
         while (true) {
           const { done, value } = await reader.read();
@@ -122,55 +127,105 @@ function createFetchStream<T>(
           const chunk = decoder.decode(value, { stream: true });
           console.log("SSE raw chunk:", chunk);
 
-          // 处理块数据 (可能包含多个JSON对象)
-          const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+          // 处理chunk数据 - chunk可能包含多条数据，每条以data:开头
+          try {
+            // 分割chunk获取所有data项
+            const dataItems = chunk
+              .split("data:")
+              .filter((item) => item.trim() !== "");
+            console.log(`找到 ${dataItems.length} 条数据项`);
 
-          for (const line of lines) {
-            try {
-              // 处理data:前缀的行
-              if (line.startsWith("data:")) {
-                const dataContent = line.slice(5).trim();
+            for (const item of dataItems) {
+              const dataContent = item.trim();
+              console.log("处理数据项:", dataContent);
 
-                // 特殊处理[DONE]标记
-                if (dataContent === "[DONE]") {
-                  console.log("SSE stream completed with [DONE] marker");
-                  // 不需要将[DONE]放入流中，只需要标记结束
-                  // 这里不调用controller.close()以便上层代码能继续读取之前的数据
-                  continue;
-                }
-
-                try {
-                  // 尝试将数据解析为JSON
-                  const data = JSON.parse(dataContent);
-                  console.log("SSE parsed data:", data);
-                  controller.enqueue(data as T);
-
-                  // 如果提供了onChunk回调，调用它
-                  if (fetchConfig.onChunk) {
-                    fetchConfig.onChunk(data, { data: dataContent } as any);
-                  }
-                } catch (parseError) {
-                  console.error(
-                    "Error parsing SSE JSON data:",
-                    parseError,
-                    "Raw data:",
-                    dataContent
-                  );
-                  // 可选：如果解析失败但仍希望将原始数据传递出去
-                  // controller.enqueue({ raw: dataContent } as unknown as T);
-                }
-              } else if (line.trim() !== "") {
-                // 处理不以data:开头但非空的行，记录日志
-                console.log("SSE non-data line:", line);
+              // 特殊处理[DONE]标记
+              if (dataContent === "[DONE]") {
+                console.log("SSE stream completed with [DONE] marker");
+                continue;
               }
-            } catch (lineError) {
-              console.error(
-                "Error processing SSE line:",
-                lineError,
-                "Line:",
-                line
-              );
+
+              // 处理第一个数据块(验证接口状态)
+              if (isFirstChunk) {
+                isFirstChunk = false;
+                try {
+                  const firstResponse = JSON.parse(dataContent);
+                  console.log("API状态检查:", firstResponse);
+
+                  // 检查接口状态
+                  if (firstResponse.code !== 0) {
+                    const errorMsg = `API错误: ${
+                      firstResponse.msg || "请求失败"
+                    }`;
+                    console.error(errorMsg);
+                    controller.error(new Error(errorMsg));
+                    return;
+                  }
+
+                  // 第一条是状态信息，不传递给下游
+                  console.log("API状态正常，继续处理后续数据");
+                  continue;
+                } catch (e) {
+                  const errorMsg = "无效的API响应格式";
+                  console.error(errorMsg, e);
+                  controller.error(new Error(errorMsg));
+                  return;
+                }
+              }
+
+              // 第二个数据块，确定处理模式
+              if (isJsonMode === null) {
+                // 检查是否是JSON(简单判断首字符是否为'{')
+                isJsonMode = dataContent.trim().startsWith("{");
+                console.log(
+                  `确定数据模式: ${isJsonMode ? "JSON模式" : "文本模式"}`
+                );
+              }
+
+              // 构造传递给下游的数据对象，包含模式信息
+              const processedData: any = {
+                isJsonMode: !!isJsonMode,
+                content: dataContent,
+              };
+
+              try {
+                if (isJsonMode) {
+                  // JSON模式，尝试解析JSON
+                  try {
+                    const jsonData = JSON.parse(dataContent);
+                    processedData.parsedData = jsonData;
+                    console.log("JSON解析成功:", jsonData);
+                  } catch (jsonError) {
+                    console.warn("JSON解析失败:", jsonError);
+                    // 解析失败时仍然传递原始内容
+                  }
+                } else {
+                  // 纯文本模式，直接传递内容
+                  accumulatedText += dataContent;
+                  console.log("文本模式，累积内容:", accumulatedText.length);
+                  console.log("文本模式，累积内容:", accumulatedText);
+                }
+
+                // 将处理后的数据传给下游
+                controller.enqueue(processedData as T);
+
+                // 如果提供了onChunk回调
+                if (fetchConfig.onChunk) {
+                  fetchConfig.onChunk(processedData, {
+                    data: processedData,
+                  } as any);
+                }
+              } catch (dataError) {
+                console.error("处理数据项时出错:", dataError);
+              }
             }
+          } catch (chunkError) {
+            console.error(
+              "Error processing SSE chunk:",
+              chunkError,
+              "Chunk:",
+              chunk
+            );
           }
         }
       } catch (error) {

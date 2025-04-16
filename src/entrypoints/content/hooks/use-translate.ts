@@ -12,6 +12,7 @@ export function useTranslate() {
     setTranslatedText,
     setLoading,
     setActiveRequestId,
+    updateParsedContent,
   } = useTranslationStore();
 
   return useCallback(async () => {
@@ -88,24 +89,43 @@ export function useTranslate() {
           console.log("[ Lite Lingo ] 翻译数据块:", value);
           hasReceivedData = true;
 
-          // 从value中提取文本内容
-          let textChunk = "";
-          if (value && value.data && value.data.text) {
-            textChunk = value.data.text;
-          } else if (value && value.text) {
-            textChunk = value.text;
-          } else if (typeof value === "string") {
-            textChunk = value;
-          } else {
-            console.warn("[ Lite Lingo ] 无法从数据块中提取文本:", value);
-            // 尝试将整个对象转为字符串
-            textChunk = JSON.stringify(value);
-          }
+          // 处理不同格式的数据
+          if (value && value.isTextMode) {
+            // 文本模式数据 - 直接处理文本
+            console.log("[ Lite Lingo ] 接收到文本模式数据");
+            const textContent = value.text || "";
 
-          if (textChunk) {
-            completeTranslation += textChunk;
+            completeTranslation += textContent;
             // 更新UI显示当前翻译结果
             setTranslatedText(completeTranslation);
+          } else if (value && value.section && value.data) {
+            // 解析后的结构化数据 - 按section更新
+            console.log(
+              "[ Lite Lingo ] 更新解析内容:",
+              value.section,
+              value.data
+            );
+            updateParsedContent(value.section, value.data);
+          } else {
+            // 处理其他格式的数据 - 兼容原有逻辑
+            let textChunk = "";
+            if (value && value.data && value.data.text) {
+              textChunk = value.data.text;
+            } else if (value && value.text) {
+              textChunk = value.text;
+            } else if (typeof value === "string") {
+              textChunk = value;
+            } else {
+              console.warn("[ Lite Lingo ] 无法从数据块中提取文本:", value);
+              // 尝试将整个对象转为字符串
+              textChunk = JSON.stringify(value);
+            }
+
+            if (textChunk) {
+              completeTranslation += textChunk;
+              // 更新UI显示当前翻译结果
+              setTranslatedText(completeTranslation);
+            }
           }
         }
       } catch (streamError) {
@@ -155,5 +175,6 @@ export function useTranslate() {
     setTranslationPosition,
     setTranslationVisibility,
     setVisibility,
+    updateParsedContent,
   ]);
 }
