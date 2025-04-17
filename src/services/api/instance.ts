@@ -162,9 +162,9 @@ export function backgroundSSE<T>(
             controller.enqueue(message.data as T);
 
             // 如果提供了onChunk回调，调用它
-            if (config.onChunk) {
-              config.onChunk(message.data, message as any);
-            }
+            // if (config.onChunk) {
+            //   config.onChunk(message.data, message as any);
+            // }
           } catch (error) {
             console.error("[ Api Client ] 处理SSE数据块出错:", error);
             controller.error(error);
