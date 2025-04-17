@@ -1,5 +1,6 @@
 import { CloseIcon, CopyIcon, PinIcon, SpeakIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDraggable } from "@/hooks/use-draggable";
 import { useSelectionStore } from "@/store/selection";
 import { TranslationType, useTranslationStore } from "@/store/translation";
@@ -369,8 +370,13 @@ export function TranslationPanel() {
     // 显示基本加载状态
     if (isLoading && !translatedText) {
       return (
-        <div className="flex items-center justify-center h-full p-4">
-          <span className="text-sm text-gray-500">翻译中...</span>
+        <div className="flex flex-col space-y-4 p-4 w-full">
+          {/* 使用骨架屏代替文本提示 */}
+          <Skeleton className="h-4 w-3/4 bg-gray-200" />
+          <Skeleton className="h-4 w-1/2 bg-gray-200" />
+          <Skeleton className="h-20 w-full bg-gray-200" />
+          <Skeleton className="h-4 w-5/6 bg-gray-200" />
+          <Skeleton className="h-4 w-2/3 bg-gray-200" />
         </div>
       );
     }
@@ -414,8 +420,13 @@ export function TranslationPanel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="flex items-center justify-center h-full p-4">
-              <span className="text-sm text-gray-500">正在准备翻译...</span>
+            <div className="flex flex-col space-y-4 p-4 w-full">
+              {/* 使用骨架屏代替文本提示 */}
+              <Skeleton className="h-4 w-3/4 bg-gray-200" />
+              <Skeleton className="h-4 w-1/2 bg-gray-200" />
+              <Skeleton className="h-20 w-full bg-gray-200" />
+              <Skeleton className="h-4 w-5/6 bg-gray-200" />
+              <Skeleton className="h-4 w-2/3 bg-gray-200" />
             </div>
           </motion.div>
         )}
