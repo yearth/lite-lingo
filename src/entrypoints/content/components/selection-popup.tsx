@@ -101,12 +101,12 @@ export function SelectionPopup() {
           return {
             width: 0,
             height: 0,
-            x: position.x,
-            y: position.y,
-            top: position.y,
-            right: position.x,
-            bottom: position.y,
-            left: position.x,
+            x: position.x - window.scrollX,
+            y: position.y - window.scrollY,
+            top: position.y - window.scrollY,
+            right: position.x - window.scrollX,
+            bottom: position.y - window.scrollY,
+            left: position.x - window.scrollX,
             toJSON() {
               return this;
             },
