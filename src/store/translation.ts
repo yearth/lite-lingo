@@ -1,6 +1,13 @@
 import { ParsedSection } from "@/services/parser/types";
 import { create } from "zustand";
 
+// 定义翻译类型枚举
+export enum TranslationType {
+  LOADING = "loading",
+  WORD = "word",
+  SENTENCE = "sentence",
+}
+
 interface Position {
   x: number;
   y: number;
@@ -27,6 +34,8 @@ interface TranslationState {
   activeRequestId: string | null;
   // 解析后的内容
   parsedContent: Partial<ParsedSection>;
+  // 翻译类型：单词还是句子
+  translationType: TranslationType;
   // 设置可见性
   setVisibility: (visible: boolean) => void;
   // 设置位置
@@ -45,6 +54,8 @@ interface TranslationState {
   togglePinned: () => void;
   // 设置活跃的SSE请求ID
   setActiveRequestId: (requestId: string | null) => void;
+  // 设置翻译类型
+  setTranslationType: (type: TranslationType) => void;
   // 更新解析内容
   updateParsedContent: (section: keyof ParsedSection, data: any) => void;
   // 重置状态
@@ -62,6 +73,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   isPinned: false,
   activeRequestId: null,
   parsedContent: {},
+  translationType: TranslationType.LOADING,
   setVisibility: (visible) => set({ isVisible: visible }),
   setPosition: (position) => set({ position }),
   setOriginalText: (text) => set({ originalText: text }),
@@ -75,6 +87,7 @@ export const useTranslationStore = create<TranslationState>((set) => ({
   setPinned: (pinned) => set({ isPinned: pinned }),
   togglePinned: () => set((state) => ({ isPinned: !state.isPinned })),
   setActiveRequestId: (requestId) => set({ activeRequestId: requestId }),
+  setTranslationType: (type) => set({ translationType: type }),
   updateParsedContent: (section, data) =>
     set((state) => ({
       parsedContent: {
@@ -92,5 +105,6 @@ export const useTranslationStore = create<TranslationState>((set) => ({
       isPinned: false,
       activeRequestId: null,
       parsedContent: {},
+      translationType: TranslationType.LOADING,
     }),
 }));

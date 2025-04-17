@@ -2,7 +2,7 @@ import { CloseIcon, CopyIcon, PinIcon, SpeakIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { useDraggable } from "@/hooks/use-draggable";
 import { useSelectionStore } from "@/store/selection";
-import { useTranslationStore } from "@/store/translation";
+import { TranslationType, useTranslationStore } from "@/store/translation";
 import {
   autoUpdate,
   flip,
@@ -12,12 +12,132 @@ import {
   useFloating,
 } from "@floating-ui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // 内联CSS组件
 const InlineStyle = ({ css }: { css: string }) => (
   <style dangerouslySetInnerHTML={{ __html: css }} />
 );
+
+// 单词翻译组件
+const WordTranslationView = ({
+  originalText,
+  parsedContent,
+  shouldShowCursor,
+  translatedText,
+}: {
+  originalText: string;
+  parsedContent: any;
+  shouldShowCursor: boolean;
+  translatedText: string;
+}) => {
+  const { inputType } = parsedContent.analysisInfo || {};
+
+  // 如果没有解析内容，使用简单文本模式
+  if (!parsedContent.dictionary && translatedText) {
+    return (
+      <div className="translation-content space-y-4 p-4">
+        {/* 原文区域 */}
+        <div className="original-text">
+          <p className="text-sm text-gray-700 select-text whitespace-pre-wrap break-words">
+            {originalText}
+          </p>
+        </div>
+
+        {/* 翻译结果区域 - 纯文本模式 */}
+        <div className="sentence-translation mt-2">
+          <p className="text-sm select-text whitespace-pre-wrap break-words leading-relaxed">
+            {translatedText}
+            {shouldShowCursor && <span className="typing-cursor"></span>}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 有结构化词典数据的展示
+  return (
+    <div className="translation-content space-y-4 p-4">
+      {/* 原文区域 */}
+      <div className="original-text">
+        <p className="text-sm text-gray-700 select-text">
+          {parsedContent.analysisInfo?.sourceText || originalText}
+        </p>
+      </div>
+
+      {/* 翻译结果区域 - 单词布局 */}
+      <div className="word-translation">
+        {parsedContent.dictionary && (
+          <div className="word-info">
+            <div className="phonetic text-sm text-gray-500">
+              {parsedContent.dictionary.phonetic}
+            </div>
+            <div className="translation text-base">
+              {parsedContent.context?.word_translation}
+            </div>
+            <div className="definitions mt-2">
+              {parsedContent.dictionary.definitions.map(
+                (def: any, index: number) => (
+                  <div key={index} className="definition-item mt-1">
+                    <div className="definition text-sm">{def.definition}</div>
+                    <div className="example text-xs text-gray-500">
+                      {def.example}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// 句子翻译组件
+const SentenceTranslationView = ({
+  originalText,
+  translatedText,
+  shouldShowCursor,
+}: {
+  originalText: string;
+  translatedText: string;
+  shouldShowCursor: boolean;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="translation-content space-y-4 p-4">
+      {/* 可折叠原文区域 */}
+      <div className="original-text-container">
+        <p
+          className={`text-sm text-gray-700 select-text whitespace-pre-wrap break-words ${
+            isExpanded ? "" : "line-clamp-1"
+          }`}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {originalText}
+        </p>
+        {originalText.length > 50 && (
+          <button
+            className="text-xs text-blue-500 mt-1 hover:underline"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? "收起" : "展开"}
+          </button>
+        )}
+      </div>
+
+      {/* 翻译结果 */}
+      <div className="sentence-translation mt-2">
+        <p className="text-sm select-text whitespace-pre-wrap break-words leading-relaxed">
+          {translatedText}
+          {shouldShowCursor && <span className="typing-cursor"></span>}
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export function TranslationPanel() {
   const {
@@ -31,6 +151,7 @@ export function TranslationPanel() {
     isLoading,
     isPinned,
     activeRequestId,
+    translationType,
     setVisibility,
     togglePinned,
     setActiveRequestId,
@@ -202,6 +323,17 @@ export function TranslationPanel() {
     }
   `;
 
+  // 行截断CSS
+  const lineClampCSS = `
+    .line-clamp-1 {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  `;
+
   // 追踪上一次的翻译文本，用于判断是否仍在流式传输
   const lastTranslatedTextRef = useRef<string>("");
 
@@ -234,93 +366,69 @@ export function TranslationPanel() {
   };
 
   const renderContent = () => {
-    // 显示加载状态
-    if (isLoading && !parsedContent.analysisInfo && !translatedText) {
+    // 显示基本加载状态
+    if (isLoading && !translatedText) {
       return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full p-4">
           <span className="text-sm text-gray-500">翻译中...</span>
         </div>
       );
     }
 
-    // 优先处理纯文本模式（当存在translatedText时）
-    if (translatedText) {
-      return (
-        <div className="translation-content space-y-4 p-4">
-          {/* 原文区域 */}
-          <div className="original-text">
-            <p className="text-sm text-gray-700 select-text whitespace-pre-wrap break-words">
-              {originalText}
-            </p>
-          </div>
-
-          {/* 翻译结果区域 - 纯文本模式 */}
-          <div className="sentence-translation mt-2">
-            <p className="text-sm select-text whitespace-pre-wrap break-words leading-relaxed">
-              {translatedText}
-              {/* 只在流式翻译进行中显示光标 */}
-              {shouldShowCursor && <span className="typing-cursor"></span>}
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    const { inputType } = parsedContent.analysisInfo || {};
-
+    // 使用AnimatePresence进行平滑过渡
     return (
-      <div className="translation-content space-y-4">
-        {/* 原文区域 */}
-        <div className="original-text">
-          <p className="text-sm text-gray-700 select-text">
-            {parsedContent.analysisInfo?.sourceText || originalText}
-          </p>
-        </div>
-
-        {/* 翻译结果区域 */}
-        {inputType === "word_or_phrase" ? (
-          <>
-            {/* 单词/短语布局 */}
-            {parsedContent.dictionary && (
-              <div className="word-info">
-                <div className="phonetic text-sm text-gray-500">
-                  {parsedContent.dictionary.phonetic}
-                </div>
-                <div className="translation text-base">
-                  {parsedContent.context?.word_translation}
-                </div>
-                <div className="definitions mt-2">
-                  {parsedContent.dictionary.definitions.map((def, index) => (
-                    <div key={index} className="definition-item mt-1">
-                      <div className="definition text-sm">{def.definition}</div>
-                      <div className="example text-xs text-gray-500">
-                        {def.example}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+      <AnimatePresence>
+        {translationType === TranslationType.SENTENCE ? (
+          <motion.div
+            key="sentence-view"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <SentenceTranslationView
+              originalText={originalText}
+              translatedText={translatedText}
+              shouldShowCursor={!!shouldShowCursor}
+            />
+          </motion.div>
+        ) : translationType === TranslationType.WORD ? (
+          <motion.div
+            key="word-view"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <WordTranslationView
+              originalText={originalText}
+              parsedContent={parsedContent}
+              shouldShowCursor={!!shouldShowCursor}
+              translatedText={translatedText}
+            />
+          </motion.div>
         ) : (
-          <>
-            {/* 句子布局 */}
-            <div className="sentence-translation">
-              {parsedContent.context?.explanation}
+          <motion.div
+            key="loading-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-center h-full p-4">
+              <span className="text-sm text-gray-500">正在准备翻译...</span>
             </div>
-          </>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     );
   };
 
   return (
     <FloatingPortal root={portalRef.current}>
-      {/* 添加滚动条样式 */}
+      {/* 添加样式 */}
       <InlineStyle css={scrollbarCSS} />
-
-      {/* 添加光标动画样式 */}
       <InlineStyle css={cursorCSS} />
+      <InlineStyle css={lineClampCSS} />
 
       <AnimatePresence>
         {isVisible && (
@@ -361,7 +469,7 @@ export function TranslationPanel() {
 
               <div className="absolute top-2 right-2 flex space-x-1 z-20">
                 <IconButton
-                  icon={<PinIcon filled={isPinned} />}
+                  icon={<PinIcon filled={!!isPinned} />}
                   tooltipContent={isPinned ? "取消固定" : "固定面板"}
                   onClick={togglePinned}
                 />
@@ -394,7 +502,9 @@ export function TranslationPanel() {
                   icon={<CopyIcon />}
                   tooltipContent="复制翻译结果"
                   onClick={() => {
-                    if (parsedContent.analysisInfo?.sourceText) {
+                    if (translatedText) {
+                      navigator.clipboard.writeText(translatedText);
+                    } else if (parsedContent.analysisInfo?.sourceText) {
                       navigator.clipboard.writeText(
                         parsedContent.analysisInfo.sourceText
                       );

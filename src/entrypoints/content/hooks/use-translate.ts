@@ -1,6 +1,6 @@
 import { backgroundSSE } from "@/services/api/instance";
 import { useSelectionStore } from "@/store/selection";
-import { useTranslationStore } from "@/store/translation";
+import { TranslationType, useTranslationStore } from "@/store/translation";
 import { useCallback } from "react";
 
 export function useTranslate() {
@@ -13,6 +13,7 @@ export function useTranslate() {
     setLoading,
     setActiveRequestId,
     updateParsedContent,
+    setTranslationType,
   } = useTranslationStore();
 
   return useCallback(async () => {
@@ -28,6 +29,8 @@ export function useTranslate() {
 
     // 设置加载状态
     setLoading(true);
+    // 设置初始翻译类型为加载状态
+    setTranslationType(TranslationType.LOADING);
 
     // 显示翻译面板
     setTranslationVisibility(true);
@@ -74,6 +77,7 @@ export function useTranslate() {
       const reader = stream.getReader();
       let completeTranslation = "";
       let hasReceivedData = false;
+      let translationTypeDetected = false; // 标记是否已检测到翻译类型
 
       // 处理流数据
       try {
@@ -88,6 +92,17 @@ export function useTranslate() {
           // 记录每个数据块
           console.log("[ Lite Lingo ] 翻译数据块:", value);
           hasReceivedData = true;
+
+          // 检测翻译类型 (仅在第一次收到数据时)
+          if (!translationTypeDetected) {
+            const isTextMode = value && value.isTextMode === true;
+            const detectedType = isTextMode
+              ? TranslationType.SENTENCE
+              : TranslationType.WORD;
+            console.log(`[ Lite Lingo ] 检测到翻译类型: ${detectedType}`);
+            setTranslationType(detectedType);
+            translationTypeDetected = true;
+          }
 
           // 处理不同格式的数据
           if (value && value.isTextMode) {
@@ -174,6 +189,7 @@ export function useTranslate() {
     setTranslatedText,
     setTranslationPosition,
     setTranslationVisibility,
+    setTranslationType,
     setVisibility,
     updateParsedContent,
   ]);
