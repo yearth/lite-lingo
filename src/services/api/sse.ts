@@ -208,13 +208,6 @@ function createFetchStream<T>(
 
                 // 将处理后的数据传给下游
                 controller.enqueue(processedData as T);
-
-                // 如果提供了onChunk回调
-                if (fetchConfig.onChunk) {
-                  fetchConfig.onChunk(processedData, {
-                    data: processedData,
-                  } as any);
-                }
               } catch (dataError) {
                 console.error("处理数据项时出错:", dataError);
               }

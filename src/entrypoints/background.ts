@@ -22,6 +22,13 @@ const activeSSERequests = new Map<string, AbortController>();
 
 console.log("[Background] QueryClient initialized.");
 
+// 添加接口定义
+interface JsonModeChunk {
+  isJsonMode: boolean;
+  content: string;
+  parsedData?: any;
+}
+
 export default defineBackground(() => {
   console.log("Hello background!", { id: browser.runtime.id });
 
@@ -165,51 +172,6 @@ export default defineBackground(() => {
           const sseConfig = {
             ...config,
             signal: controller.signal,
-            onChunk: (chunk: any) => {
-              console.log("[Background] SSE数据块:", chunk);
-
-              // 检查是否为包含模式信息的新格式数据
-              if (chunk && typeof chunk === "object" && "isJsonMode" in chunk) {
-                console.log(
-                  `[Background] 检测到新格式数据，模式: ${
-                    chunk.isJsonMode ? "JSON" : "文本"
-                  }`
-                );
-
-                if (chunk.isJsonMode) {
-                  // JSON模式 - 传递给解析器
-                  messageHandler.handleChunk(chunk.content);
-                } else {
-                  // 文本模式 - 直接发送到前端，绕过解析器
-                  console.log(
-                    `[Background] 文本模式，直接发送到前端: ${chunk.content.substring(
-                      0,
-                      50
-                    )}...`
-                  );
-                  chrome.tabs
-                    .sendMessage(tabId, {
-                      type: "SSE_CHUNK",
-                      requestId,
-                      data: { text: chunk.content, isTextMode: true },
-                    })
-                    .catch((err) => {
-                      console.error(
-                        `[Background] 发送文本模式数据失败: ${requestId}`,
-                        err
-                      );
-                    });
-                }
-              } else {
-                // 兼容旧格式 - 传递给解析器
-                messageHandler.handleChunk(chunk);
-              }
-            },
-            onError: (error: any) => {
-              messageHandler.handleError(
-                error instanceof Error ? error : new Error(String(error))
-              );
-            },
           };
 
           // 提取路径部分(去掉基础URL)
@@ -221,6 +183,7 @@ export default defineBackground(() => {
             path,
             sseConfig
           );
+
           const stream = api.sse(path, sseConfig);
 
           // 处理流结束
@@ -234,6 +197,51 @@ export default defineBackground(() => {
                   value,
                 });
                 if (done) break;
+
+                // 在reader中实现原来onChunk中的业务逻辑
+                // 检查是否为包含模式信息的新格式数据
+                if (
+                  value &&
+                  typeof value === "object" &&
+                  "isJsonMode" in value
+                ) {
+                  // 断言类型
+                  const chunk = value as JsonModeChunk;
+
+                  console.log(
+                    `[Background] 检测到新格式数据，模式: ${
+                      chunk.isJsonMode ? "JSON" : "文本"
+                    }`
+                  );
+
+                  if (chunk.isJsonMode) {
+                    // JSON模式 - 传递给解析器
+                    messageHandler.handleChunk(chunk.content);
+                  } else {
+                    // 文本模式 - 直接发送到前端，绕过解析器
+                    console.log(
+                      `[Background] 文本模式，直接发送到前端: ${chunk.content.substring(
+                        0,
+                        50
+                      )}...`
+                    );
+                    chrome.tabs
+                      .sendMessage(tabId, {
+                        type: "SSE_CHUNK",
+                        requestId,
+                        data: { text: chunk.content, isTextMode: true },
+                      })
+                      .catch((err) => {
+                        console.error(
+                          `[Background] 发送文本模式数据失败: ${requestId}`,
+                          err
+                        );
+                      });
+                  }
+                } else {
+                  // 兼容旧格式 - 传递给解析器
+                  messageHandler.handleChunk(value as any);
+                }
               }
             } catch (error) {
               console.error(`[Background] SSE读取错误: ${requestId}`, error);
