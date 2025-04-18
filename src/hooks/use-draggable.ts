@@ -22,61 +22,77 @@ export function useDraggable<T extends HTMLElement>(
     startPos: { x: 0, y: 0 },
     startOffset: { x: 0, y: 0 },
     currentOffset: { x: 0, y: 0 },
+    pointerId: -1, // 保存pointerId以供后续使用
   });
 
   // 跟踪事件处理函数引用
   const handlersRef = useRef({
-    onMouseDown: null as ((e: MouseEvent) => void) | null,
-    onMouseMove: null as ((e: MouseEvent) => void) | null,
-    onMouseUp: null as ((e: MouseEvent) => void) | null,
+    onPointerDown: null as ((e: PointerEvent) => void) | null,
+    onPointerMove: null as ((e: PointerEvent) => void) | null,
+    onPointerUp: null as ((e: PointerEvent) => void) | null,
+    onPointerCancel: null as ((e: PointerEvent) => void) | null,
   });
 
   // 重置拖拽状态的函数
   const resetDragState = useCallback(() => {
     stateRef.current.isDragging = false;
+    stateRef.current.pointerId = -1;
     setIsDragging(false);
   }, []);
 
   // 清理事件监听器
   const cleanup = useCallback(() => {
-    if (handlersRef.current.onMouseMove) {
-      window.removeEventListener(
-        "mousemove",
-        handlersRef.current.onMouseMove as EventListener
-      );
+    if (handlersRef.current.onPointerMove) {
       document.removeEventListener(
-        "mousemove",
-        handlersRef.current.onMouseMove as EventListener
+        "pointermove",
+        handlersRef.current.onPointerMove as EventListener,
+        { capture: true }
       );
     }
 
-    if (handlersRef.current.onMouseUp) {
-      window.removeEventListener(
-        "mouseup",
-        handlersRef.current.onMouseUp as EventListener
+    if (handlersRef.current.onPointerUp) {
+      document.removeEventListener(
+        "pointerup",
+        handlersRef.current.onPointerUp as EventListener,
+        { capture: true }
       );
       document.removeEventListener(
-        "mouseup",
-        handlersRef.current.onMouseUp as EventListener
+        "pointercancel",
+        handlersRef.current.onPointerCancel as EventListener,
+        { capture: true }
       );
     }
-  }, []);
 
-  // 简化的拖拽实现，直接基于mousemove事件
+    // 尝试释放任何可能仍然活跃的指针捕获
+    if (stateRef.current.pointerId !== -1 && ref.current) {
+      try {
+        ref.current.releasePointerCapture(stateRef.current.pointerId);
+      } catch (e) {
+        // 忽略可能的错误
+      }
+    }
+  }, [ref]);
+
+  // 使用PointerEvents和PointerCapture实现拖拽
   useEffect(() => {
     // 如果禁用或者引用不存在，直接返回
     if (disabled || !ref.current) return;
 
     const element = ref.current;
 
-    // 鼠标按下时的处理函数
-    const onMouseDown = (e: MouseEvent) => {
+    // 指针按下时的处理函数
+    const onPointerDown = (e: PointerEvent) => {
       // 检查是否点击了拖拽手柄
       if (handleSelector) {
         const target = e.target as HTMLElement;
         if (!target.closest(handleSelector)) {
           return;
         }
+      }
+
+      // 只处理鼠标或触摸事件
+      if (e.pointerType !== "mouse" && e.pointerType !== "touch") {
+        return;
       }
 
       // 阻止默认行为
@@ -88,6 +104,17 @@ export function useDraggable<T extends HTMLElement>(
       const startY = e.clientY;
       const startOffsetX = dragOffset.x;
       const startOffsetY = dragOffset.y;
+      const pointerId = e.pointerId;
+
+      // 使用指针捕获 - 关键改进
+      if (element.setPointerCapture) {
+        try {
+          element.setPointerCapture(pointerId);
+          console.log("[拖拽] 已捕获指针:", pointerId);
+        } catch (err) {
+          console.error("[拖拽] 指针捕获失败:", err);
+        }
+      }
 
       // 更新状态
       stateRef.current = {
@@ -95,6 +122,7 @@ export function useDraggable<T extends HTMLElement>(
         startPos: { x: startX, y: startY },
         startOffset: { x: startOffsetX, y: startOffsetY },
         currentOffset: { x: startOffsetX, y: startOffsetY },
+        pointerId, // 保存pointerId
       };
       setIsDragging(true);
 
@@ -102,29 +130,40 @@ export function useDraggable<T extends HTMLElement>(
         clientX: startX,
         clientY: startY,
         startOffset: { x: startOffsetX, y: startOffsetY },
+        pointerId,
       });
+    };
 
-      // 鼠标移动处理
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!stateRef.current.isDragging) return;
+    // 指针移动处理
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      // 确保这是我们正在跟踪的指针
+      if (
+        !stateRef.current.isDragging ||
+        moveEvent.pointerId !== stateRef.current.pointerId
+      ) {
+        return;
+      }
 
-        moveEvent.preventDefault();
-        moveEvent.stopPropagation();
+      moveEvent.preventDefault();
+      moveEvent.stopPropagation();
 
-        // 计算偏移量
-        const dx = moveEvent.clientX - stateRef.current.startPos.x;
-        const dy = moveEvent.clientY - stateRef.current.startPos.y;
+      // 计算偏移量
+      const dx = moveEvent.clientX - stateRef.current.startPos.x;
+      const dy = moveEvent.clientY - stateRef.current.startPos.y;
 
-        // 计算新位置
-        const newOffset = {
-          x: stateRef.current.startOffset.x + dx,
-          y: stateRef.current.startOffset.y + dy,
-        };
+      // 计算新位置
+      const newOffset = {
+        x: stateRef.current.startOffset.x + dx,
+        y: stateRef.current.startOffset.y + dy,
+      };
 
-        // 更新状态
-        stateRef.current.currentOffset = newOffset;
-        setDragOffset(newOffset);
+      // 更新状态
+      stateRef.current.currentOffset = newOffset;
+      setDragOffset(newOffset);
 
+      // 限制日志输出频率，减少控制台垃圾信息
+      if (Math.random() < 0.05) {
+        // 只记录约5%的移动事件
         console.log("[拖拽] 移动", {
           clientX: moveEvent.clientX,
           clientY: moveEvent.clientY,
@@ -132,85 +171,127 @@ export function useDraggable<T extends HTMLElement>(
           dy,
           newOffset,
         });
-      };
-
-      // 鼠标松开处理
-      const onMouseUp = (upEvent: MouseEvent) => {
-        if (!stateRef.current.isDragging) return;
-
-        upEvent.preventDefault();
-        upEvent.stopPropagation();
-
-        // 计算最终位置
-        const dx = upEvent.clientX - stateRef.current.startPos.x;
-        const dy = upEvent.clientY - stateRef.current.startPos.y;
-        const finalOffset = {
-          x: stateRef.current.startOffset.x + dx,
-          y: stateRef.current.startOffset.y + dy,
-        };
-
-        // 更新并重置状态
-        setDragOffset(finalOffset);
-        resetDragState();
-
-        console.log("[拖拽] 结束", {
-          finalOffset,
-          dx,
-          dy,
-        });
-
-        // 移除临时事件监听
-        document.removeEventListener("mousemove", onMouseMove as EventListener);
-        document.removeEventListener("mouseup", onMouseUp as EventListener);
-        window.removeEventListener("mousemove", onMouseMove as EventListener);
-        window.removeEventListener("mouseup", onMouseUp as EventListener);
-      };
-
-      // 保存引用
-      handlersRef.current = {
-        onMouseDown,
-        onMouseMove,
-        onMouseUp,
-      };
-
-      // 添加临时事件监听
-      document.addEventListener("mousemove", onMouseMove as EventListener);
-      document.addEventListener("mouseup", onMouseUp as EventListener);
-      window.addEventListener("mousemove", onMouseMove as EventListener);
-      window.addEventListener("mouseup", onMouseUp as EventListener);
-
-      // 处理Shadow DOM
-      if (inShadowDOM) {
-        try {
-          let node: Node | null = element;
-          while (node) {
-            if (node instanceof ShadowRoot) {
-              const host = node.host;
-              const hostDoc = host.ownerDocument;
-
-              hostDoc.addEventListener(
-                "mousemove",
-                onMouseMove as EventListener
-              );
-              hostDoc.addEventListener("mouseup", onMouseUp as EventListener);
-              host.addEventListener("mousemove", onMouseMove as EventListener);
-              host.addEventListener("mouseup", onMouseUp as EventListener);
-              break;
-            }
-            node = node.parentNode;
-          }
-        } catch (err) {
-          console.error("[拖拽] Shadow DOM 事件绑定失败:", err);
-        }
       }
     };
 
-    // 添加鼠标按下事件监听
-    element.addEventListener("mousedown", onMouseDown as EventListener);
+    // 指针松开处理
+    const onPointerUp = (upEvent: PointerEvent) => {
+      // 确保这是我们正在跟踪的指针
+      if (
+        !stateRef.current.isDragging ||
+        upEvent.pointerId !== stateRef.current.pointerId
+      ) {
+        return;
+      }
+
+      upEvent.preventDefault();
+      upEvent.stopPropagation();
+
+      // 计算最终位置
+      const dx = upEvent.clientX - stateRef.current.startPos.x;
+      const dy = upEvent.clientY - stateRef.current.startPos.y;
+      const finalOffset = {
+        x: stateRef.current.startOffset.x + dx,
+        y: stateRef.current.startOffset.y + dy,
+      };
+
+      // 如果元素仍然保持指针捕获，释放它
+      if (element.releasePointerCapture) {
+        try {
+          element.releasePointerCapture(stateRef.current.pointerId);
+          console.log("[拖拽] 已释放指针:", stateRef.current.pointerId);
+        } catch (err) {
+          console.error("[拖拽] 指针释放失败:", err);
+        }
+      }
+
+      // 更新并重置状态
+      setDragOffset(finalOffset);
+      resetDragState();
+
+      console.log("[拖拽] 结束", {
+        finalOffset,
+        dx,
+        dy,
+      });
+    };
+
+    // 指针取消处理（例如用户切换应用等情况）
+    const onPointerCancel = (cancelEvent: PointerEvent) => {
+      // 确保这是我们正在跟踪的指针
+      if (
+        !stateRef.current.isDragging ||
+        cancelEvent.pointerId !== stateRef.current.pointerId
+      ) {
+        return;
+      }
+
+      console.log("[拖拽] 取消", {
+        pointerId: cancelEvent.pointerId,
+        currentOffset: stateRef.current.currentOffset,
+      });
+
+      // 如果元素仍然保持指针捕获，释放它
+      if (element.releasePointerCapture) {
+        try {
+          element.releasePointerCapture(stateRef.current.pointerId);
+          console.log("[拖拽] 已释放指针 (取消):", stateRef.current.pointerId);
+        } catch (err) {
+          console.error("[拖拽] 指针释放失败 (取消):", err);
+        }
+      }
+
+      // 使用最后一个已知位置
+      setDragOffset(stateRef.current.currentOffset);
+      resetDragState();
+    };
+
+    // 保存引用
+    handlersRef.current = {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+    };
+
+    // 添加指针按下事件监听
+    element.addEventListener("pointerdown", onPointerDown as EventListener);
+
+    // 添加全局指针移动和抬起事件监听
+    document.addEventListener("pointermove", onPointerMove as EventListener, {
+      capture: true, // 使用捕获阶段以确保不会错过事件
+    });
+    document.addEventListener("pointerup", onPointerUp as EventListener, {
+      capture: true,
+    });
+    document.addEventListener(
+      "pointercancel",
+      onPointerCancel as EventListener,
+      {
+        capture: true,
+      }
+    );
 
     // 清理函数
     return () => {
-      element.removeEventListener("mousedown", onMouseDown as EventListener);
+      element.removeEventListener(
+        "pointerdown",
+        onPointerDown as EventListener
+      );
+      document.removeEventListener(
+        "pointermove",
+        onPointerMove as EventListener,
+        { capture: true }
+      );
+      document.removeEventListener("pointerup", onPointerUp as EventListener, {
+        capture: true,
+      });
+      document.removeEventListener(
+        "pointercancel",
+        onPointerCancel as EventListener,
+        { capture: true }
+      );
+
       cleanup();
     };
   }, [

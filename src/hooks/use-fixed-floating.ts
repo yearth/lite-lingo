@@ -15,12 +15,12 @@ interface UseFixedFloatingProps {
   resetDragOffset: () => void;
 }
 
-// 面板初始高度（包含骨架屏内容）
-const INITIAL_PANEL_HEIGHT = 268;
+// 固定的额外Y轴偏移，确保显示在文本下方
+const EXTRA_Y_OFFSET = 20;
 
 /**
  * 用于处理浮动元素初始定位和固定位置的钩子
- * 直接使用我们传递给位置引用的坐标，不依赖FloatingUI的计算
+ * 充分利用FloatingUI的定位能力
  */
 export function useFixedFloating({
   isVisible,
@@ -35,15 +35,23 @@ export function useFixedFloating({
   // 设置位置引用并存储原始坐标
   useEffect(() => {
     if (isVisible && position) {
+      // 确保使用正确的滚动偏移量
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+
       // 计算视口坐标
-      const viewportX = position.x - window.scrollX;
-      const viewportY = position.y - window.scrollY;
+      const viewportX = position.x - scrollX;
+      const viewportY = position.y - scrollY;
 
       // 记录原始位置坐标
       console.log("[ Lite Lingo ] 原始选择位置:", position);
       console.log("[ Lite Lingo ] 滚动偏移:", {
-        scrollX: window.scrollX,
-        scrollY: window.scrollY,
+        scrollX,
+        scrollY,
+        windowScrollX: window.scrollX,
+        windowScrollY: window.scrollY,
+        docScrollLeft: document.documentElement.scrollLeft,
+        docScrollTop: document.documentElement.scrollTop,
       });
 
       // 保存视口坐标作为引用位置
@@ -54,6 +62,7 @@ export function useFixedFloating({
         y: viewportY,
       });
 
+      // 设置位置引用元素
       floating.refs.setPositionReference({
         getBoundingClientRect() {
           return {
@@ -91,67 +100,44 @@ export function useFixedFloating({
       console.log("[ Lite Lingo ] FloatingUI计算值:", {
         x: floating.x,
         y: floating.y,
+        placement: floating.placement,
+        strategy: floating.strategy,
+        extraYOffset: EXTRA_Y_OFFSET,
       });
     }
-  }, [floating.x, floating.y]);
+  }, [floating.x, floating.y, floating.placement, floating.strategy]);
 
-  // 构建最终样式 - 使用引用坐标作为基础并添加智能定位逻辑
-  const finalStyles = referencePos
-    ? (() => {
-        // 获取视口高度
-        const viewportHeight = window.innerHeight;
-
-        // 计算面板底部位置（假设向下展示）
-        const panelBottomIfDown = referencePos.y + 10 + INITIAL_PANEL_HEIGHT;
-
-        // 判断面板是否会超出视口底部
-        const wouldOverflowBottom = panelBottomIfDown > viewportHeight;
-
-        // 记录定位决策
-        console.log("[ Lite Lingo ] 面板定位决策:", {
-          viewportHeight,
-          panelBottomIfDown,
-          wouldOverflowBottom,
-          willShowAbove: wouldOverflowBottom,
-        });
-
-        // 如果会超出底部，则向上展示；否则向下展示
-        const yOffset = wouldOverflowBottom
-          ? -(INITIAL_PANEL_HEIGHT + 10) // 向上偏移（面板高度+间距）
-          : 10; // 默认向下偏移10px
-
-        return {
+  // 使用FloatingUI的计算结果，添加拖拽偏移和固定额外偏移
+  const finalStyles =
+    floating.x !== null && floating.y !== null
+      ? {
           position: "fixed" as const,
-          left: 0,
           top: 0,
-          transform: `translate(${referencePos.x}px, ${
-            referencePos.y + yOffset
-          }px) translate(${dragOffset.x}px, ${dragOffset.y}px)`,
+          left: 0,
+          transform: `translateX(${floating.x + dragOffset.x}px) translateY(${
+            floating.y + EXTRA_Y_OFFSET + dragOffset.y
+          }px)`,
+          zIndex: 9999,
+        }
+      : {
+          position: "fixed" as const,
+          visibility: "hidden" as const,
           zIndex: 9999,
         };
-      })()
-    : {
-        ...floating.floatingStyles,
-        transform: `${floating.floatingStyles.transform || ""} translate(${
-          dragOffset.x
-        }px, ${dragOffset.y}px)`,
-        zIndex: 9999,
-      };
 
   // 记录拖拽偏移和最终位置
   useEffect(() => {
-    if (referencePos && (dragOffset.x !== 0 || dragOffset.y !== 0)) {
-      const isShowingAbove =
-        referencePos.y + 10 + INITIAL_PANEL_HEIGHT > window.innerHeight;
-      const baseYOffset = isShowingAbove ? -(INITIAL_PANEL_HEIGHT + 10) : 10;
-
+    if (
+      floating.x !== null &&
+      floating.y !== null &&
+      (dragOffset.x !== 0 || dragOffset.y !== 0)
+    ) {
       console.log("[ Lite Lingo ] 拖拽偏移:", dragOffset, "最终位置:", {
-        x: referencePos.x + dragOffset.x,
-        y: referencePos.y + baseYOffset + dragOffset.y,
-        isShowingAbove,
+        x: floating.x + dragOffset.x,
+        y: floating.y + EXTRA_Y_OFFSET + dragOffset.y,
       });
     }
-  }, [referencePos, dragOffset]);
+  }, [floating.x, floating.y, dragOffset]);
 
   return { referencePos, finalStyles };
 }
