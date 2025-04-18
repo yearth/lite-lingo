@@ -7,7 +7,6 @@ import { AnimatePresence } from "framer-motion";
 import { useRef } from "react";
 import { cursorCSS, lineClampCSS, scrollbarCSS } from "./constants.style";
 import {
-  PanelActions,
   PanelContainer,
   PanelHandle,
   PanelHeader,
@@ -107,7 +106,7 @@ export function TranslationPanel() {
                 sourceLanguage={sourceLanguage}
                 targetLanguage={targetLanguage}
               />
-              <div className="flex flex-col flex-1 overflow-hidden">
+              <div className="h-[120px] rounded-md border overflow-auto flex flex-col p-3">
                 <TranslationContent
                   isLoading={isLoading}
                   translatedText={translatedText}
@@ -118,10 +117,10 @@ export function TranslationPanel() {
                   shouldShowCursor={shouldShowCursor}
                 />
               </div>
-              <PanelActions
+              {/* <PanelActions
                 translatedText={translatedText}
                 parsedContent={parsedContent}
-              />
+              /> */}
             </PanelContainer>
           </div>
         )}
