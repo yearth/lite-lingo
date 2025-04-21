@@ -25,8 +25,19 @@ console.log("[Background] QueryClient initialized.");
 // 添加接口定义
 interface JsonModeChunk {
   isJsonMode: boolean;
-  content: string;
-  parsedData?: any;
+  content: any;
+}
+
+// 文本块大小限制
+const MAX_TEXT_CHUNK_SIZE = 1000;
+
+// 流错误类型
+enum StreamErrorType {
+  ABORTED = "ABORTED",
+  TIMEOUT = "TIMEOUT",
+  NETWORK = "NETWORK",
+  PARSE = "PARSE",
+  UNKNOWN = "UNKNOWN",
 }
 
 export default defineBackground(() => {
@@ -130,39 +141,12 @@ export default defineBackground(() => {
                 });
             },
             onError: (error) => {
-              console.error(`[Background] SSE错误: ${requestId}`, error);
-
-              chrome.tabs
-                .sendMessage(tabId, {
-                  type: "SSE_ERROR",
-                  requestId,
-                  error: error.message || "SSE连接错误",
-                })
-                .catch((err) => {
-                  console.error(
-                    `[Background] 发送SSE错误消息失败: ${requestId}`,
-                    err
-                  );
-                });
-
+              handleStreamError(error, requestId, tabId);
               // 清理请求
               activeSSERequests.delete(requestId);
             },
             onComplete: () => {
-              console.log(`[Background] SSE流正常结束: ${requestId}`);
-
-              chrome.tabs
-                .sendMessage(tabId, {
-                  type: "SSE_COMPLETE",
-                  requestId,
-                })
-                .catch((err) => {
-                  console.error(
-                    `[Background] 发送SSE完成消息失败: ${requestId}`,
-                    err
-                  );
-                });
-
+              notifyStreamComplete(requestId, tabId);
               // 清理请求
               activeSSERequests.delete(requestId);
             },
@@ -186,70 +170,9 @@ export default defineBackground(() => {
 
           const stream = api.sse(path, sseConfig);
 
-          // 处理流结束
+          // 处理流
           const reader = stream.getReader();
-          (async () => {
-            try {
-              while (true) {
-                const { done, value } = await reader.read();
-                console.log(`[Background] SSE读取数据: ${requestId}`, {
-                  done,
-                  value,
-                });
-                if (done) break;
-
-                // 在reader中实现原来onChunk中的业务逻辑
-                // 检查是否为包含模式信息的新格式数据
-                if (
-                  value &&
-                  typeof value === "object" &&
-                  "isJsonMode" in value
-                ) {
-                  // 断言类型
-                  const chunk = value as JsonModeChunk;
-
-                  console.log(
-                    `[Background] 检测到新格式数据，模式: ${
-                      chunk.isJsonMode ? "JSON" : "文本"
-                    }`
-                  );
-
-                  if (chunk.isJsonMode) {
-                    // JSON模式 - 传递给解析器
-                    messageHandler.handleChunk(chunk.content);
-                  } else {
-                    // 文本模式 - 直接发送到前端，绕过解析器
-                    console.log(
-                      `[Background] 文本模式，直接发送到前端: ${chunk.content.substring(
-                        0,
-                        50
-                      )}...`
-                    );
-                    chrome.tabs
-                      .sendMessage(tabId, {
-                        type: "SSE_CHUNK",
-                        requestId,
-                        data: { text: chunk.content, isTextMode: true },
-                      })
-                      .catch((err) => {
-                        console.error(
-                          `[Background] 发送文本模式数据失败: ${requestId}`,
-                          err
-                        );
-                      });
-                  }
-                } else {
-                  // 兼容旧格式 - 传递给解析器
-                  messageHandler.handleChunk(value as any);
-                }
-              }
-            } catch (error) {
-              console.error(`[Background] SSE读取错误: ${requestId}`, error);
-              messageHandler.handleError(
-                error instanceof Error ? error : new Error(String(error))
-              );
-            }
-          })();
+          handleSSEStream(reader, requestId, tabId, messageHandler);
         } catch (error) {
           console.error(`[Background] 启动SSE请求失败: ${requestId}`, error);
 
@@ -293,3 +216,305 @@ export default defineBackground(() => {
 
   console.log("[Background] Message listener attached.");
 });
+
+/**
+ * 处理SSE流数据
+ */
+async function handleSSEStream(
+  reader: ReadableStreamDefaultReader<any>,
+  requestId: string,
+  tabId: number,
+  messageHandler: any
+) {
+  try {
+    // 主处理循环
+    while (true) {
+      // 读取数据块
+      const { done, value } = await reader.read();
+
+      // 记录数据
+      logStreamData(requestId, done, value);
+
+      // 检查流是否结束
+      if (done) {
+        console.log(`[Background] SSE流结束: ${requestId}`);
+        break;
+      }
+
+      // 验证数据格式
+      if (!isValidStreamData(value)) {
+        logInvalidData(requestId, value);
+        continue;
+      }
+
+      // 根据模式处理数据
+      await processStreamData(value, requestId, tabId, messageHandler);
+    }
+
+    // 处理流正常结束
+    notifyStreamComplete(requestId, tabId);
+  } catch (error) {
+    // 处理流错误
+    handleStreamError(error, requestId, tabId, messageHandler);
+  }
+}
+
+/**
+ * 记录流数据
+ */
+function logStreamData(requestId: string, done: boolean, value: any) {
+  if (value && !done) {
+    console.log(`[Background] SSE读取数据: ${requestId}`, {
+      done,
+      value: typeof value === "object" ? `[Object]` : value,
+      size: JSON.stringify(value).length,
+    });
+  } else {
+    console.log(`[Background] SSE读取数据: ${requestId}`, { done });
+  }
+}
+
+/**
+ * 验证数据格式
+ */
+function isValidStreamData(value: any): boolean {
+  return (
+    value &&
+    typeof value === "object" &&
+    "isJsonMode" in value &&
+    typeof value.isJsonMode === "boolean" &&
+    "content" in value
+  );
+}
+
+/**
+ * 记录无效数据
+ */
+function logInvalidData(requestId: string, value: any) {
+  console.warn(`[Background] 收到非预期格式数据: ${requestId}`, {
+    type: typeof value,
+    value: value ? JSON.stringify(value).substring(0, 100) : "null",
+    hasIsJsonMode:
+      value && typeof value === "object" ? "isJsonMode" in value : false,
+  });
+}
+
+/**
+ * 处理流数据
+ */
+async function processStreamData(
+  value: any,
+  requestId: string,
+  tabId: number,
+  messageHandler: any
+) {
+  const chunk = value as JsonModeChunk;
+  const mode = chunk.isJsonMode ? "JSON" : "文本";
+
+  console.log(`[Background] 处理${mode}模式数据: ${requestId}`);
+
+  if (chunk.isJsonMode) {
+    // 处理JSON模式数据
+    await messageHandler.handleChunk(chunk.content);
+  } else {
+    // 处理文本模式数据
+    await processTextModeData(chunk.content, requestId, tabId);
+  }
+}
+
+/**
+ * 处理文本模式数据
+ */
+async function processTextModeData(
+  content: any,
+  requestId: string,
+  tabId: number
+) {
+  // 确保content是字符串
+  const textContent =
+    typeof content === "string" ? content : JSON.stringify(content);
+
+  // 判断是否需要分片处理
+  if (textContent.length <= MAX_TEXT_CHUNK_SIZE) {
+    // 小文本直接发送
+    await sendTextContent(textContent, requestId, tabId);
+    return;
+  }
+
+  // 对大文本进行分片处理
+  console.log(
+    `[Background] 大型文本(${textContent.length}字符)将分片处理: ${requestId}`
+  );
+  await processLargeTextContent(textContent, requestId, tabId);
+}
+
+/**
+ * 发送文本内容
+ */
+async function sendTextContent(
+  text: string,
+  requestId: string,
+  tabId: number
+): Promise<void> {
+  try {
+    console.log(
+      `[Background] 文本模式，发送到前端: ${requestId}`,
+      text.substring(0, 50) + (text.length > 50 ? "..." : "")
+    );
+
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SSE_CHUNK",
+      requestId,
+      data: { text, isTextMode: true },
+    });
+  } catch (err) {
+    console.error(`[Background] 发送文本模式数据失败: ${requestId}`, err);
+  }
+}
+
+/**
+ * 处理大型文本
+ */
+async function processLargeTextContent(
+  content: string,
+  requestId: string,
+  tabId: number
+) {
+  let position = 0;
+  let chunkIndex = 0;
+
+  while (position < content.length) {
+    // 计算当前块的结束位置
+    const end = Math.min(position + MAX_TEXT_CHUNK_SIZE, content.length);
+
+    // 尝试在句子边界切分
+    let segmentEnd = end;
+    if (end < content.length) {
+      // 查找句号、问号、感叹号等断句标记
+      const sentenceBreaks = [".", "?", "!", "。", "？", "！", "\n"];
+      for (let i = end; i > position && i > end - 100; i--) {
+        if (sentenceBreaks.includes(content[i])) {
+          segmentEnd = i + 1;
+          break;
+        }
+      }
+    }
+
+    const chunk = content.substring(position, segmentEnd);
+
+    // 发送当前块
+    try {
+      await chrome.tabs.sendMessage(tabId, {
+        type: "SSE_CHUNK",
+        requestId,
+        data: {
+          text: chunk,
+          isTextMode: true,
+          isPartial: segmentEnd < content.length,
+          chunkIndex: chunkIndex++,
+        },
+      });
+    } catch (err) {
+      console.error(`[Background] 发送文本块失败: ${requestId}`, err);
+      break;
+    }
+
+    position = segmentEnd;
+
+    // 如果还有更多块，添加小延迟避免UI阻塞
+    if (position < content.length) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  // 发送分片完成消息
+  if (chunkIndex > 1) {
+    try {
+      await chrome.tabs.sendMessage(tabId, {
+        type: "SSE_TEXT_COMPLETE",
+        requestId,
+        data: { totalChunks: chunkIndex },
+      });
+    } catch (err) {
+      console.error(`[Background] 发送文本完成消息失败: ${requestId}`, err);
+    }
+  }
+}
+
+/**
+ * 处理流错误
+ */
+function handleStreamError(
+  error: any,
+  requestId: string,
+  tabId: number,
+  messageHandler?: any
+) {
+  // 记录详细的错误信息
+  console.error(`[Background] SSE错误: ${requestId}`, {
+    message: error.message,
+    name: error.name,
+    stack: error.stack,
+    cause: error.cause,
+  });
+
+  // 错误类型区分
+  let errorType = StreamErrorType.UNKNOWN;
+  let userMessage = "翻译过程中发生错误";
+
+  if (error.name === "AbortError") {
+    errorType = StreamErrorType.ABORTED;
+    userMessage = "翻译已取消";
+  } else if (error.message?.includes("timeout")) {
+    errorType = StreamErrorType.TIMEOUT;
+    userMessage = "翻译请求超时";
+  } else if (
+    error.message?.includes("network") ||
+    error.message?.includes("fetch")
+  ) {
+    errorType = StreamErrorType.NETWORK;
+    userMessage = "网络连接错误";
+  } else if (
+    error.message?.includes("parse") ||
+    error.message?.includes("JSON")
+  ) {
+    errorType = StreamErrorType.PARSE;
+    userMessage = "数据解析错误";
+  }
+
+  // 如果有messageHandler，先通过它处理
+  if (messageHandler?.handleError) {
+    messageHandler.handleError(error);
+  }
+
+  // 向前端发送结构化错误
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: "SSE_ERROR",
+      requestId,
+      error: {
+        type: errorType,
+        message: userMessage,
+        details: error.message,
+      },
+    })
+    .catch((err) => {
+      console.error(`[Background] 发送错误信息失败: ${requestId}`, err);
+    });
+}
+
+/**
+ * 通知流完成
+ */
+function notifyStreamComplete(requestId: string, tabId: number) {
+  console.log(`[Background] SSE流正常结束: ${requestId}`);
+
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: "SSE_COMPLETE",
+      requestId,
+    })
+    .catch((err) => {
+      console.error(`[Background] 发送SSE完成消息失败: ${requestId}`, err);
+    });
+}
