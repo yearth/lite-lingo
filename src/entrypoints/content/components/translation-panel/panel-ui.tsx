@@ -1,5 +1,5 @@
 import { CloseIcon, CopyIcon, PinIcon, SpeakIcon } from "@/components/icons";
-import { IconButton } from "@/components/ui/icon-button";
+import { PanelIconButton } from "@/components/ui/panel-icon-button";
 import { TranslationType } from "@/store/translation";
 import { motion } from "framer-motion";
 import { ReactNode, forwardRef, useState } from "react";
@@ -77,12 +77,12 @@ export function PanelToolbar({
 }: PanelToolbarProps) {
   return (
     <div className={`absolute top-2 right-2 flex space-x-1 z-20 ${className}`}>
-      <IconButton
+      <PanelIconButton
         icon={<PinIcon filled={!!isPinned} />}
         tooltipContent={isPinned ? "取消固定" : "固定面板"}
         onClick={togglePinned}
       />
-      <IconButton
+      <PanelIconButton
         icon={<CloseIcon />}
         tooltipContent="关闭"
         onClick={onClose}
@@ -154,7 +154,7 @@ export function PanelHeader({
 
           {/* 复制按钮 */}
           <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <IconButton
+            <PanelIconButton
               icon={<CopyIcon />}
               tooltipContent="复制原文"
               onClick={handleCopyOriginal}
@@ -182,7 +182,7 @@ export function PanelActions({
     <div
       className={`p-2 border-t border-gray-100 flex justify-end space-x-1 bg-white ${className}`}
     >
-      <IconButton
+      <PanelIconButton
         icon={<CopyIcon />}
         tooltipContent="复制翻译结果"
         onClick={() => {
@@ -195,7 +195,7 @@ export function PanelActions({
           }
         }}
       />
-      <IconButton
+      <PanelIconButton
         icon={<SpeakIcon />}
         tooltipContent="朗读翻译结果"
         onClick={() => {

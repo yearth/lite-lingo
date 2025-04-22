@@ -62,7 +62,6 @@ export function TranslationView({
           transition={{ duration: 0.2 }}
         >
           <SentenceTranslationView
-            originalText={originalText}
             translatedText={translatedText}
             shouldShowCursor={!!showCursor}
           />
@@ -76,7 +75,6 @@ export function TranslationView({
           transition={{ duration: 0.2 }}
         >
           <WordTranslationView
-            originalText={originalText}
             parsedContent={parsedContent}
             shouldShowCursor={!!showCursor}
             translatedText={translatedText}

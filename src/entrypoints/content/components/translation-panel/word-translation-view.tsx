@@ -1,10 +1,8 @@
 export const WordTranslationView = ({
-  originalText,
   parsedContent,
   shouldShowCursor,
   translatedText,
 }: {
-  originalText: string;
   parsedContent: any;
   shouldShowCursor: boolean;
   translatedText: string;

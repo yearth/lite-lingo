@@ -3,7 +3,6 @@ export const SentenceTranslationView = ({
   translatedText,
   shouldShowCursor,
 }: {
-  originalText: string; // 保留参数以保持向后兼容
   translatedText: string;
   shouldShowCursor: boolean;
 }) => {

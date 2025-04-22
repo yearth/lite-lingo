@@ -1,5 +1,5 @@
 import { CopyIcon } from "@/components/icons";
-import { IconButton } from "@/components/ui/icon-button";
+import { PanelIconButton } from "@/components/ui/panel-icon-button";
 
 interface WordTranslationActionsProps {
   translatedText: string;
@@ -16,7 +16,7 @@ export function WordTranslationActions({
     <div
       className={`p-2 border-t border-gray-100 flex justify-end space-x-1 bg-white ${className}`}
     >
-      <IconButton
+      <PanelIconButton
         icon={<CopyIcon />}
         tooltipContent="复制单词翻译"
         onClick={() => {
