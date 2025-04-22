@@ -15,6 +15,7 @@ export async function handleSSEStream(
     while (true) {
       // 读取数据块
       const { done, value } = await reader.read();
+      console.log("[Background] 读取数据块:", value);
 
       // 记录数据
       logStreamData(requestId, done, value);

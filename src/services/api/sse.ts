@@ -112,7 +112,14 @@ function createFetchStream<T>(
         // 流状态跟踪
         let isFirstChunk = true; // 标记第一个数据块
         let isJsonMode = null; // 处理模式(null=未知, true=JSON, false=文本)
-        let accumulatedText = ""; // 用于纯文本模式下累积内容
+
+        // 清理JSON内容的函数，移除SSE传输引入的控制字符，但保留内容中的空格
+        const cleanJsonContent = (content: string): string => {
+          // 移除SSE传输引入的控制字符（\r\n\t等），但保留内容中的空格
+          return content
+            .replace(/[\r\n\t]+/g, "") // 移除换行和制表符
+            .trim(); // 移除两端空白，但保留内部空格
+        };
 
         // 读取流数据
         while (true) {
@@ -127,56 +134,58 @@ function createFetchStream<T>(
           const chunk = decoder.decode(value, { stream: true });
           console.log("SSE raw chunk:", chunk);
 
-          // 处理chunk数据 - chunk可能包含多条数据，每条以data:开头
+          // 处理chunk数据
           try {
-            // 分割chunk获取所有data项
-            const dataItems = chunk
-              .split("data:")
-              .filter((item) => item.trim() !== "");
-            console.log(`找到 ${dataItems.length} 条数据项`);
+            // 如果chunk是以data:开头的消息
+            if (isFirstChunk) {
+              isFirstChunk = false;
+              try {
+                // 提取并解析首条消息
+                const firstResponse = JSON.parse(
+                  cleanJsonContent(chunk.split("data:")[1])
+                );
+                console.log("API状态检查:", firstResponse);
 
-            for (const item of dataItems) {
-              const dataContent = item.trim();
-              console.log("处理数据项:", dataContent);
-
-              // 特殊处理[DONE]标记
-              if (dataContent === "[DONE]") {
-                console.log("SSE stream completed with [DONE] marker");
-                continue;
-              }
-
-              // 处理第一个数据块(验证接口状态)
-              if (isFirstChunk) {
-                isFirstChunk = false;
-                try {
-                  const firstResponse = JSON.parse(dataContent);
-                  console.log("API状态检查:", firstResponse);
-
-                  // 检查接口状态
-                  if (firstResponse.code !== 0) {
-                    const errorMsg = `API错误: ${
-                      firstResponse.msg || "请求失败"
-                    }`;
-                    console.error(errorMsg);
-                    controller.error(new Error(errorMsg));
-                    return;
-                  }
-
-                  // 第一条是状态信息，不传递给下游
-                  console.log("API状态正常，继续处理后续数据");
-                  continue;
-                } catch (e) {
-                  const errorMsg = "无效的API响应格式";
-                  console.error(errorMsg, e);
+                // 检查接口状态
+                if (firstResponse.code !== 0) {
+                  const errorMsg = `API错误: ${
+                    firstResponse.msg || "请求失败"
+                  }`;
+                  console.error(errorMsg);
                   controller.error(new Error(errorMsg));
                   return;
                 }
+
+                // 第一条是状态信息，不传递给下游
+                console.log("API状态正常，继续处理后续数据");
+                continue;
+              } catch (e) {
+                const errorMsg = "无效的API响应格式";
+                console.error(errorMsg, e);
+                controller.error(new Error(errorMsg));
+                return;
               }
+            }
+            // 处理后续的消息 - 保留所有字符，包括空格
+            else {
+              // 如果有data:前缀，需要分割提取内容
+              let character = chunk;
+              if (chunk.includes("data:")) {
+                character = chunk.split("data:")[1];
+              }
+
+              // 清理不可见字符，但保留内容空格
+              if (character) {
+                character = cleanJsonContent(character);
+              }
+
+              console.log("处理消息字符:", character);
 
               // 第二个数据块，确定处理模式
               if (isJsonMode === null) {
-                // 检查是否是JSON(简单判断首字符是否为'{')
-                isJsonMode = dataContent.trim().startsWith("{");
+                // 检查是否是JSON(判断第一个非空白字符是否为'{')
+                const firstNonWhitespace = character.trimStart()[0];
+                isJsonMode = firstNonWhitespace === "{";
                 console.log(
                   `确定数据模式: ${isJsonMode ? "JSON模式" : "文本模式"}`
                 );
@@ -185,27 +194,10 @@ function createFetchStream<T>(
               // 构造传递给下游的数据对象，包含模式信息
               const processedData: any = {
                 isJsonMode: !!isJsonMode,
-                content: dataContent,
+                content: character, // 清理后的内容
               };
 
               try {
-                if (isJsonMode) {
-                  // JSON模式，尝试解析JSON
-                  try {
-                    const jsonData = JSON.parse(dataContent);
-                    processedData.parsedData = jsonData;
-                    console.log("JSON解析成功:", jsonData);
-                  } catch (jsonError) {
-                    console.warn("JSON解析失败:", jsonError);
-                    // 解析失败时仍然传递原始内容
-                  }
-                } else {
-                  // 纯文本模式，直接传递内容
-                  accumulatedText += dataContent;
-                  console.log("文本模式，累积内容:", accumulatedText.length);
-                  console.log("文本模式，累积内容:", accumulatedText);
-                }
-
                 // 将处理后的数据传给下游
                 controller.enqueue(processedData as T);
               } catch (dataError) {

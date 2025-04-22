@@ -1,5 +1,5 @@
 import { api } from "@/services/api/instance";
-import { handleSSEStream as streamHandler } from "@/services/stream/stream-handler";
+import { handleSSEStream } from "@/services/stream/stream-handler";
 
 // 存储活跃的SSE请求
 const activeSSERequests = new Map<string, AbortController>();
@@ -121,7 +121,7 @@ export default defineBackground(() => {
 
           // 处理流
           const reader = stream.getReader();
-          streamHandler(reader, requestId, tabId);
+          handleSSEStream(reader, requestId, tabId);
         } catch (error) {
           console.error(`[Background] 启动SSE请求失败: ${requestId}`, error);
 
