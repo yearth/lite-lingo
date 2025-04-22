@@ -58,6 +58,8 @@ interface TranslationState {
   setTranslationType: (type: TranslationType) => void;
   // 更新解析内容
   updateParsedContent: (section: keyof ParsedSection, data: any) => void;
+  // 直接设置整个解析内容对象
+  setParsedContent: (content: any) => void;
   // 重置状态
   reset: () => void;
 }
@@ -95,6 +97,10 @@ export const useTranslationStore = create<TranslationState>((set) => ({
         [section]: data,
       },
     })),
+  setParsedContent: (content) => {
+    console.log("设置解析内容:", content);
+    set({ parsedContent: content });
+  },
   reset: () =>
     set({
       isVisible: false,

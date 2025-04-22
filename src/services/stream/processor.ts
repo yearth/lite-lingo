@@ -4,6 +4,10 @@ import { JsonModeChunk } from "./validator";
 // 文本块大小限制
 const MAX_TEXT_CHUNK_SIZE = 1000;
 
+// 保存每个请求的解析状态
+const requestParseState: Record<string, any> = {};
+const requestChunkCount: Record<string, number> = {};
+
 /**
  * 处理流数据
  */
@@ -27,32 +31,172 @@ export async function processStreamData(
 }
 
 /**
+ * 流式JSON解析函数，尝试解析不完整的JSON字符串
+ * @param chunk 当前接收到的JSON片段
+ * @param previousResult 之前已解析的结果
+ * @returns 当前部分解析结果
+ */
+function parsePartialJson(chunk: string, previousResult: any = {}): any {
+  // 创建用于保存当前解析结果的对象
+  const result = { ...previousResult };
+
+  // 尝试解析context部分
+  tryParseContext(chunk, result);
+
+  // 尝试解析dictionary部分
+  tryParseDictionary(chunk, result);
+
+  return result;
+}
+
+// 尝试解析context部分
+function tryParseContext(chunk: string, result: any): void {
+  // 查找context部分的特征
+  const contextMatch = /"context"\s*:\s*{([^}]*)/.exec(chunk);
+  if (contextMatch) {
+    // 提取context内部内容
+    const contextContent = contextMatch[1];
+
+    // 解析word_translation
+    const wordTransMatch = /"word_translation"\s*:\s*"([^"]*)"/.exec(
+      contextContent
+    );
+    if (wordTransMatch) {
+      result.context = result.context || {};
+      result.context.word_translation = wordTransMatch[1];
+    }
+
+    // 解析explanation
+    const explanationMatch = /"explanation"\s*:\s*"([^"]*)"/.exec(
+      contextContent
+    );
+    if (explanationMatch) {
+      result.context = result.context || {};
+      result.context.explanation = explanationMatch[1];
+    }
+  }
+}
+
+// 尝试解析dictionary部分
+function tryParseDictionary(chunk: string, result: any): void {
+  // 提取dictionary部分
+  const dictMatch = /"dictionary"\s*:\s*{([^}]*)/.exec(chunk);
+  if (dictMatch) {
+    result.dictionary = result.dictionary || {};
+
+    // 解析word和phonetic
+    const wordMatch = /"word"\s*:\s*"([^"]*)"/.exec(chunk);
+    if (wordMatch) {
+      result.dictionary.word = wordMatch[1];
+    }
+
+    const phoneticMatch = /"phonetic"\s*:\s*"([^"]*)"/.exec(chunk);
+    if (phoneticMatch) {
+      result.dictionary.phonetic = phoneticMatch[1];
+    }
+
+    // 尝试解析definitions数组
+    tryParseDefinitions(chunk, result);
+  }
+}
+
+// 尝试解析definitions数组
+function tryParseDefinitions(chunk: string, result: any): void {
+  // 使用简单的正则来尝试提取各个definition项
+  const defMatches = chunk.match(/{[^{]*"pos"\s*:\s*"[^"]*"[^}]*}/g);
+  if (defMatches) {
+    result.dictionary.definitions = result.dictionary.definitions || [];
+
+    // 处理每个匹配到的definition
+    defMatches.forEach((defStr) => {
+      try {
+        // 尝试解析这个完整的definition对象
+        const defObj = JSON.parse(defStr);
+        // 检查是否已存在该定义
+        const exists = result.dictionary.definitions.some(
+          (d: any) => d.pos === defObj.pos && d.def === defObj.def
+        );
+        if (!exists) {
+          result.dictionary.definitions.push(defObj);
+        }
+      } catch (e) {
+        // 忽略解析错误，继续处理
+      }
+    });
+  }
+}
+
+// 判断JSON是否完整
+function isCompleteJson(jsonStr: string): boolean {
+  try {
+    JSON.parse(jsonStr);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * 处理JSON模式数据
- * 暂时简化处理，直接发送到前端显示
+ * 实现流式解析和渲染
  */
 export async function processJsonModeData(
   content: any,
   requestId: string,
   tabId: number
 ) {
-  console.log(`[Background] JSON模式，发送到前端: ${requestId}`);
+  console.log(`[Background] JSON模式，处理流式数据: ${requestId}`);
 
   try {
-    // 确保content是可序列化的对象
+    // 确保content是字符串
     const jsonContent =
       typeof content === "string" ? content : JSON.stringify(content);
-    console.log("[Background] jsonContent", jsonContent);
 
-    // 直接发送到前端显示
+    // 初始化或增加块计数
+    requestChunkCount[requestId] = (requestChunkCount[requestId] || 0) + 1;
+    const chunkIndex = requestChunkCount[requestId];
+
+    // 获取之前的解析结果，并用新数据更新
+    const previousResult = requestParseState[requestId] || {};
+    const partialResult = parsePartialJson(jsonContent, previousResult);
+
+    // 保存当前解析结果
+    requestParseState[requestId] = partialResult;
+
+    // 尝试判断是否为完整JSON
+    const isComplete = isCompleteJson(jsonContent);
+
+    console.log(
+      `[Background] 部分解析结果: ${JSON.stringify(partialResult).substring(
+        0,
+        100
+      )}...`
+    );
+
+    // 发送部分解析结果到前端
     await chrome.tabs.sendMessage(tabId, {
       type: "SSE_CHUNK",
       requestId,
       data: {
-        json: content, // 原始JSON数据
-        text: jsonContent, // 字符串形式
+        json: partialResult,
         isJsonMode: true,
+        isPartial: !isComplete,
+        chunkIndex,
       },
     });
+
+    // 如果解析完成，发送完成消息
+    if (isComplete) {
+      await chrome.tabs.sendMessage(tabId, {
+        type: "SSE_JSON_COMPLETE",
+        requestId,
+        data: { totalChunks: chunkIndex },
+      });
+
+      // 清理该请求的状态
+      delete requestParseState[requestId];
+      delete requestChunkCount[requestId];
+    }
   } catch (error) {
     console.error(`[Background] 处理JSON数据失败: ${requestId}`, error);
     handleStreamError(error, requestId, tabId);

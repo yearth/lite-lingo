@@ -1,5 +1,6 @@
 import type { ContentScriptContext } from "#imports";
 import { SelectionPopup } from "@/entrypoints/content/components/selection-popup";
+import { TranslationHandler } from "@/entrypoints/content/components/translation-handler";
 import { TranslationPanel } from "@/entrypoints/content/components/translation-panel";
 import { useSelectionStore } from "@/store/selection";
 import { useTranslationStore } from "@/store/translation";
@@ -30,6 +31,7 @@ function createUi(ctx: ContentScriptContext) {
         <>
           <SelectionPopup />
           <TranslationPanel />
+          <TranslationHandler />
         </>
       );
 
