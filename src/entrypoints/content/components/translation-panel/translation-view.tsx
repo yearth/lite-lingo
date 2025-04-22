@@ -76,6 +76,43 @@ export function TranslationView({
         >
           <WordTranslationView
             parsedContent={parsedContent}
+            // parsedContent={{
+            //   context: {
+            //     word_translation: "实现",
+            //     explanation:
+            //       "在编程上下文中，'implement'指的是将设计、规范或算法转化为实际的代码或功能。",
+            //   },
+            //   dictionary: {
+            //     word: "implement",
+            //     phonetic: "/ˈɪmplɪment/",
+            //     definitions: [
+            //       {
+            //         pos: "动词",
+            //         def: "实施，执行，实现",
+            //         example: {
+            //           orig: "We need to implement this feature by next week.",
+            //           trans: "我们需要在下周前实现这个功能。",
+            //         },
+            //       },
+            //       {
+            //         pos: "名词",
+            //         def: "工具，器具",
+            //         example: {
+            //           orig: "Farmers use various implements for tilling the soil.",
+            //           trans: "农民使用各种工具耕作土地。",
+            //         },
+            //       },
+            //       {
+            //         pos: "动词",
+            //         def: "使生效，贯彻",
+            //         example: {
+            //           orig: "The government will implement the new policy next month.",
+            //           trans: "政府将在下个月实施这项新政策。",
+            //         },
+            //       },
+            //     ],
+            //   },
+            // }}
             shouldShowCursor={!!showCursor}
             translatedText={translatedText}
           />

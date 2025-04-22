@@ -41,6 +41,7 @@ export async function processJsonModeData(
     // 确保content是可序列化的对象
     const jsonContent =
       typeof content === "string" ? content : JSON.stringify(content);
+    console.log("[Background] jsonContent", jsonContent);
 
     // 直接发送到前端显示
     await chrome.tabs.sendMessage(tabId, {
