@@ -1,5 +1,4 @@
 import { RefObject, useEffect } from "react";
-import { useClickAway } from "react-use";
 
 interface UseOutsideClickProps {
   elementRef: RefObject<HTMLElement | null>;
@@ -7,11 +6,12 @@ interface UseOutsideClickProps {
   isDragging: boolean;
   isPinned: boolean;
   onClose: () => void;
-  inShadowDOM?: boolean;
+  inShadowDOM?: boolean; // 保留参数，但不再使用它
 }
 
 /**
  * 处理元素外部点击关闭逻辑的钩子
+ * 专门为Shadow DOM环境优化
  */
 export function useOutsideClick({
   elementRef,
@@ -19,18 +19,10 @@ export function useOutsideClick({
   isDragging,
   isPinned,
   onClose,
-  inShadowDOM = false,
 }: UseOutsideClickProps) {
-  // 使用react-use的useClickAway处理常规点击情况
-  useClickAway(elementRef, (e) => {
-    if (isVisible && !isDragging && !isPinned) {
-      onClose();
-    }
-  });
-
-  // 特殊处理Shadow DOM环境中的点击
+  // 使用composedPath处理Shadow DOM环境中的点击
   useEffect(() => {
-    if (!inShadowDOM || !isVisible) return;
+    if (!isVisible) return;
 
     const handleDocumentClick = (e: MouseEvent) => {
       if (isVisible && !isDragging && !isPinned) {
@@ -53,5 +45,5 @@ export function useOutsideClick({
     return () => {
       document.removeEventListener("mousedown", handleDocumentClick);
     };
-  }, [elementRef, isVisible, isDragging, isPinned, onClose, inShadowDOM]);
+  }, [elementRef, isVisible, isDragging, isPinned, onClose]);
 }

@@ -76,7 +76,6 @@ export function TranslationPanel() {
     isDragging,
     isPinned,
     onClose: handleClose,
-    inShadowDOM: true,
   });
 
   return (
@@ -117,10 +116,6 @@ export function TranslationPanel() {
                   shouldShowCursor={shouldShowCursor}
                 />
               </div>
-              {/* <PanelActions
-                translatedText={translatedText}
-                parsedContent={parsedContent}
-              /> */}
             </PanelContainer>
           </div>
         )}
