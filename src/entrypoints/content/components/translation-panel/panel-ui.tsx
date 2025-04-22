@@ -1,7 +1,8 @@
 import { CloseIcon, CopyIcon, PinIcon, SpeakIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
+import { TranslationType } from "@/store/translation";
 import { motion } from "framer-motion";
-import { ReactNode, forwardRef } from "react";
+import { ReactNode, forwardRef, useState } from "react";
 
 // 面板容器组件
 interface PanelContainerProps {
@@ -94,26 +95,73 @@ export function PanelToolbar({
 interface PanelHeaderProps {
   sourceLanguage: string;
   targetLanguage: string;
+  originalText: string;
+  translationType: TranslationType;
   className?: string;
 }
 
 export function PanelHeader({
   sourceLanguage,
   targetLanguage,
+  originalText,
+  translationType,
   className = "",
 }: PanelHeaderProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isSentence = translationType === TranslationType.SENTENCE;
+  const needTruncate = isSentence && originalText.length > 60;
+
+  // 复制原文
+  const handleCopyOriginal = () => {
+    if (originalText) {
+      navigator.clipboard.writeText(originalText);
+    }
+  };
+
   return (
-    <div
-      className={`p-3 pt-6 border-b border-gray-100 flex items-center justify-start bg-white ${className}`}
-    >
-      <div className="flex items-center space-x-2">
+    <div className={`p-3 pt-6 border-b border-gray-100 bg-white ${className}`}>
+      {/* 上部：翻译标题和语言方向 */}
+      <div className="flex items-center justify-start mb-2">
         <h3 className="text-sm font-medium text-gray-800">翻译</h3>
-        <div className="text-xs text-gray-500 flex items-center">
+        <div className="text-xs text-gray-500 flex items-center ml-2">
           <span>{sourceLanguage === "auto" ? "自动检测" : sourceLanguage}</span>
           <span className="mx-1">→</span>
           <span>{targetLanguage}</span>
         </div>
       </div>
+
+      {/* 下部：原文展示区域 */}
+      {originalText && (
+        <div className="mt-2 bg-gray-50 p-2 rounded-md relative group">
+          <p
+            className={`text-base font-medium ${
+              needTruncate && !isExpanded ? "line-clamp-2" : ""
+            }`}
+            onClick={() => needTruncate && setIsExpanded(!isExpanded)}
+          >
+            {originalText}
+          </p>
+
+          {/* 展开/收起按钮 */}
+          {needTruncate && (
+            <button
+              className="text-xs text-blue-500 mt-1 hover:underline"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? "收起" : "展开"}
+            </button>
+          )}
+
+          {/* 复制按钮 */}
+          <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <IconButton
+              icon={<CopyIcon />}
+              tooltipContent="复制原文"
+              onClick={handleCopyOriginal}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

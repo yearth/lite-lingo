@@ -12,16 +12,9 @@ export const WordTranslationView = ({
   // 如果没有解析内容，使用简单文本模式
   if (!parsedContent.dictionary && translatedText) {
     return (
-      <div className="translation-content space-y-4 p-4">
-        {/* 原文区域 */}
-        <div className="original-text">
-          <p className="text-sm text-gray-700 select-text whitespace-pre-wrap break-words">
-            {originalText}
-          </p>
-        </div>
-
+      <div className="translation-content p-4">
         {/* 翻译结果区域 - 纯文本模式 */}
-        <div className="sentence-translation mt-2">
+        <div className="sentence-translation">
           <p className="text-sm select-text whitespace-pre-wrap break-words leading-relaxed">
             {translatedText}
             {shouldShowCursor && <span className="typing-cursor"></span>}
@@ -33,14 +26,7 @@ export const WordTranslationView = ({
 
   // 有结构化词典数据的展示
   return (
-    <div className="translation-content space-y-4 p-4">
-      {/* 原文区域 */}
-      <div className="original-text">
-        <p className="text-sm text-gray-700 select-text">
-          {parsedContent.analysisInfo?.sourceText || originalText}
-        </p>
-      </div>
-
+    <div className="translation-content p-4">
       {/* 翻译结果区域 - 单词布局 */}
       <div className="word-translation">
         {parsedContent.dictionary && (

@@ -2,16 +2,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TranslationType } from "@/store/translation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
-import { SentenceTranslationActions } from "./sentence-translation-actions";
 import { SentenceTranslationView } from "./sentence-translation-view";
-import { WordTranslationActions } from "./word-translation-actions";
 import { WordTranslationView } from "./word-translation-view";
 
 /**
- * @deprecated 此组件已弃用，现在使用TranslationView和TranslationActions代替
- * 请使用更新的组件实现三区域布局
+ * 纯内容显示组件，只负责展示翻译结果，不包含操作按钮
  */
-export function TranslationContent({
+export function TranslationView({
   isLoading,
   translatedText,
   originalText,
@@ -63,16 +60,11 @@ export function TranslationContent({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="flex flex-col"
         >
           <SentenceTranslationView
             originalText={originalText}
             translatedText={translatedText}
             shouldShowCursor={!!showCursor}
-          />
-          <SentenceTranslationActions
-            translatedText={translatedText}
-            originalText={originalText}
           />
         </motion.div>
       ) : translationType === TranslationType.WORD ? (
@@ -82,17 +74,12 @@ export function TranslationContent({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="flex flex-col"
         >
           <WordTranslationView
             originalText={originalText}
             parsedContent={parsedContent}
             shouldShowCursor={!!showCursor}
             translatedText={translatedText}
-          />
-          <WordTranslationActions
-            translatedText={translatedText}
-            parsedContent={parsedContent}
           />
         </motion.div>
       ) : (

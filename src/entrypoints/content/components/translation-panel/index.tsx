@@ -12,8 +12,9 @@ import {
   PanelHeader,
   PanelToolbar,
 } from "./panel-ui";
-import { TranslationContent } from "./translation-content";
+import { TranslationActions } from "./translation-actions";
 import { TranslationPortal } from "./translation-portal";
+import { TranslationView } from "./translation-view";
 
 export function TranslationPanel() {
   // 获取面板状态和操作
@@ -94,19 +95,30 @@ export function TranslationPanel() {
             className="fixed z-[999]"
             data-testid="translation-panel"
           >
-            <PanelContainer ref={panelRef} isDragging={isDragging}>
-              <PanelHandle />
-              <PanelToolbar
-                isPinned={isPinned}
-                togglePinned={togglePinned}
-                onClose={handleClose}
-              />
-              <PanelHeader
-                sourceLanguage={sourceLanguage}
-                targetLanguage={targetLanguage}
-              />
-              <div className="h-[120px] rounded-md border overflow-auto flex flex-col p-3">
-                <TranslationContent
+            <PanelContainer
+              ref={panelRef}
+              isDragging={isDragging}
+              className="flex flex-col"
+            >
+              {/* Header区域 - 固定不滚动 */}
+              <div className="flex-none">
+                <PanelHandle />
+                <PanelToolbar
+                  isPinned={isPinned}
+                  togglePinned={togglePinned}
+                  onClose={handleClose}
+                />
+                <PanelHeader
+                  sourceLanguage={sourceLanguage}
+                  targetLanguage={targetLanguage}
+                  originalText={originalText}
+                  translationType={translationType}
+                />
+              </div>
+
+              {/* Content区域 - 可滚动，最大高度限制 */}
+              <div className="flex-1 overflow-auto rounded-md border mx-3 my-2 max-h-[200px]">
+                <TranslationView
                   isLoading={isLoading}
                   translatedText={translatedText}
                   originalText={originalText}
@@ -114,6 +126,16 @@ export function TranslationPanel() {
                   translationType={translationType}
                   activeRequestId={activeRequestId}
                   shouldShowCursor={shouldShowCursor}
+                />
+              </div>
+
+              {/* Footer区域 - 固定在底部 */}
+              <div className="flex-none mb-2">
+                <TranslationActions
+                  translatedText={translatedText}
+                  originalText={originalText}
+                  parsedContent={parsedContent}
+                  translationType={translationType}
                 />
               </div>
             </PanelContainer>
