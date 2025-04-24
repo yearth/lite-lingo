@@ -715,6 +715,7 @@ export async function sendTextContent(
     });
   } catch (err) {
     console.error(`[Background] 发送文本模式数据失败: ${requestId}`, err);
+    handleStreamError(err, requestId, tabId);
   }
 }
 
@@ -762,6 +763,7 @@ export async function processLargeTextContent(
       });
     } catch (err) {
       console.error(`[Background] 发送文本块失败: ${requestId}`, err);
+      handleStreamError(err, requestId, tabId);
       break;
     }
 
@@ -783,6 +785,7 @@ export async function processLargeTextContent(
       });
     } catch (err) {
       console.error(`[Background] 发送文本完成消息失败: ${requestId}`, err);
+      handleStreamError(err, requestId, tabId);
     }
   }
 }
