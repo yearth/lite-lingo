@@ -9,6 +9,11 @@ const requestParseState: Record<string, any> = {};
 const requestChunkCount: Record<string, number> = {};
 // 为每个请求维护一个JSON字符串缓冲区
 const requestJsonBuffer: Record<string, string> = {};
+// 为每个请求维护预处理状态
+const requestPreprocessState: Record<
+  string,
+  { isInString: boolean; previousChar: string | null }
+> = {};
 
 /**
  * 处理流数据
@@ -41,7 +46,8 @@ export async function processStreamData(
 function parsePartialJson(chunk: string, previousResult: any = {}): any {
   console.log(
     "[Parser] 开始解析JSON片段:",
-    chunk.substring(0, 50) + (chunk.length > 50 ? "..." : "")
+    // chunk.substring(0, 50) + (chunk.length > 50 ? "..." : "")
+    chunk
   );
   console.log(
     "[Parser] 之前的解析结果:",
@@ -479,12 +485,54 @@ export async function processJsonModeData(
       )}...`
     );
 
-    // 累积JSON片段到缓冲区
+    // --- START: Pre-processing Logic ---
+    // Initialize state if it doesn't exist
+    if (!requestPreprocessState[requestId]) {
+      requestPreprocessState[requestId] = {
+        isInString: false,
+        previousChar: null,
+      };
+    }
+    const state = requestPreprocessState[requestId];
+    let processedChunk = "";
+
+    for (let i = 0; i < jsonContent.length; i++) {
+      const char = jsonContent[i];
+      let keepChar = false;
+
+      if (char === '"' && state.previousChar !== "\\") {
+        // Toggle string state on unescaped quote
+        state.isInString = !state.isInString;
+        keepChar = true; // Always keep the quote itself
+      } else if (state.isInString) {
+        // Keep everything inside a string
+        keepChar = true;
+      } else {
+        // Outside a string, keep only non-whitespace characters
+        if (!/\s/.test(char)) {
+          keepChar = true;
+        }
+      }
+
+      if (keepChar) {
+        processedChunk += char;
+      }
+      state.previousChar = char; // Update previous char for escape checking
+    }
+    console.log(
+      `[Background] 预处理后Chunk(前100字符): ${processedChunk.substring(
+        0,
+        100
+      )}...`
+    );
+    // --- END: Pre-processing Logic ---
+
+    // 累积 *预处理后* 的JSON片段到缓冲区
     requestJsonBuffer[requestId] = requestJsonBuffer[requestId] || "";
-    requestJsonBuffer[requestId] += jsonContent;
+    requestJsonBuffer[requestId] += processedChunk; // Append the processed chunk
     const accumulatedJson = requestJsonBuffer[requestId];
     console.log(
-      `[Background] 累积的JSON(长度:${
+      `[Background] 累积的 *预处理后* JSON(长度:${
         accumulatedJson.length
       }): ${accumulatedJson.substring(0, 100)}...`
     );
@@ -494,7 +542,7 @@ export async function processJsonModeData(
     const chunkIndex = requestChunkCount[requestId];
     console.log(`[Background] 处理第${chunkIndex}个JSON数据块`);
 
-    // 获取之前的解析结果，并用累积的JSON更新
+    // 获取之前的解析结果，并用 *预处理后* 的累积JSON更新
     const previousResult = requestParseState[requestId] || {};
     console.log(
       `[Background] 之前的解析状态: ${JSON.stringify(previousResult).substring(
@@ -503,12 +551,13 @@ export async function processJsonModeData(
       )}...`
     );
 
+    // Call parsePartialJson with the pre-processed buffer
     const partialResult = parsePartialJson(accumulatedJson, previousResult);
 
     // 保存当前解析结果
     requestParseState[requestId] = partialResult;
 
-    // 尝试判断是否为完整JSON
+    // 尝试判断是否为完整JSON (using the pre-processed buffer)
     const isComplete = isCompleteJson(accumulatedJson);
     console.log(`[Background] 是否完整JSON: ${isComplete}`);
 
@@ -537,7 +586,7 @@ export async function processJsonModeData(
       console.log(`[Background] JSON完整，发送完成消息`);
 
       // 打印完整的JSON和解析结果，用于调试
-      console.log(`[Background] 完整的原始JSON: ${accumulatedJson}`);
+      console.log(`[Background] 完整的 *预处理后* JSON: ${accumulatedJson}`);
       console.log(
         `[Background] 完整的解析结果JSON: ${JSON.stringify(
           partialResult,
@@ -610,6 +659,7 @@ export async function processJsonModeData(
       delete requestParseState[requestId];
       delete requestChunkCount[requestId];
       delete requestJsonBuffer[requestId]; // 清理JSON缓冲区
+      delete requestPreprocessState[requestId]; // 清理预处理状态
       console.log(`[Background] 已清理请求${requestId}的状态`);
     }
   } catch (error) {

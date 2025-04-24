@@ -115,10 +115,25 @@ function createFetchStream<T>(
 
         // 清理JSON内容的函数，移除SSE传输引入的控制字符，但保留内容中的空格
         const cleanJsonContent = (content: string): string => {
-          // 移除SSE传输引入的控制字符（\r\n\t等），但保留内容中的空格
-          return content
-            .replace(/[\r\n\t]+/g, "") // 移除换行和制表符
-            .trim(); // 移除两端空白，但保留内部空格
+          // 修改前记录原始长度，便于调试
+          const originalLength = content.length;
+
+          // 只移除换行和特定控制字符，不影响内容中的空格
+          const cleaned = content
+            .replace(/[\r\n\f\v]+/g, "") // 只替换换行和表单控制字符
+            // .replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, ""); // 仅移除两端空白
+
+          // 添加调试日志
+          if (cleaned.length !== originalLength) {
+            console.log(
+              `[SSE清理] 原始长度:${originalLength}, 清理后长度:${cleaned.length}`
+            );
+            if (cleaned.length < 100) {
+              console.log(`[SSE清理] 清理后内容: "${cleaned}"`);
+            }
+          }
+
+          return cleaned;
         };
 
         // 读取流数据
@@ -136,14 +151,20 @@ function createFetchStream<T>(
 
           // 处理chunk数据
           try {
-            // 如果chunk是以data:开头的消息
+            // 处理第一个数据块(验证接口状态)
             if (isFirstChunk) {
               isFirstChunk = false;
               try {
-                // 提取并解析首条消息
-                const firstResponse = JSON.parse(
-                  cleanJsonContent(chunk.split("data:")[1])
-                );
+                // 提取数据内容并记录原始内容
+                const rawContent = chunk.split("data:")[1];
+                console.log(`[SSE首条] 原始内容: "${rawContent}"`);
+
+                // 使用改进后的清理函数处理，只清理控制字符
+                const cleanedContent = cleanJsonContent(rawContent);
+                console.log(`[SSE首条] 清理后内容: "${cleanedContent}"`);
+
+                // 解析JSON
+                const firstResponse = JSON.parse(cleanedContent);
                 console.log("API状态检查:", firstResponse);
 
                 // 检查接口状态
@@ -171,30 +192,36 @@ function createFetchStream<T>(
               // 如果有data:前缀，需要分割提取内容
               let character = chunk;
               if (chunk.includes("data:")) {
-                character = chunk.split("data:")[1];
+                character = chunk.split("data:")[1].trimStart();
               }
 
-              // 清理不可见字符，但保留内容空格
-              if (character) {
-                character = cleanJsonContent(character);
-              }
+              // 记录原始字符，便于调试
+              console.log(`[SSE处理] 原始字符: "${character}"`);
+
+              // 不再对单个字符片段进行 trim，保留原始字符包括空格
+              // （可以保留原始字符日志，但移除 trim 相关代码）
+              // console.log(`[SSE处理] 原始字符: "${character}"`); // 可以保留或移除此日志
+
+              // 后续代码直接使用未经 trim 的 character
 
               console.log("处理消息字符:", character);
 
               // 第二个数据块，确定处理模式
               if (isJsonMode === null) {
                 // 检查是否是JSON(判断第一个非空白字符是否为'{')
-                const firstNonWhitespace = character.trimStart()[0];
-                isJsonMode = firstNonWhitespace === "{";
+                const firstChar = character.trim()[0];
+                isJsonMode = firstChar === "{";
                 console.log(
-                  `确定数据模式: ${isJsonMode ? "JSON模式" : "文本模式"}`
+                  `确定数据模式: ${
+                    isJsonMode ? "JSON模式" : "文本模式"
+                  }, 首字符: '${firstChar}'`
                 );
               }
 
               // 构造传递给下游的数据对象，包含模式信息
               const processedData: any = {
                 isJsonMode: !!isJsonMode,
-                content: character, // 清理后的内容
+                content: cleanJsonContent(character), // 清理后的内容，但保留空格
               };
 
               try {
