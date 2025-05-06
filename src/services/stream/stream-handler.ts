@@ -1,5 +1,6 @@
+import { processStreamData } from ".";
 import { handleStreamError, notifyStreamComplete } from "./error-handler";
-import { processStreamData } from "./processor";
+
 import { isValidStreamData, logInvalidData, logStreamData } from "./validator";
 
 /**

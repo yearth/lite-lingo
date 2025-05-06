@@ -1,8 +1,7 @@
 /**
- * JSON数据块接口
+ * 文本数据块接口
  */
-export interface JsonModeChunk {
-  isJsonMode: boolean;
+export interface TextChunk {
   content: any;
 }
 
@@ -10,13 +9,7 @@ export interface JsonModeChunk {
  * 验证数据格式
  */
 export function isValidStreamData(value: any): boolean {
-  return (
-    value &&
-    typeof value === "object" &&
-    "isJsonMode" in value &&
-    typeof value.isJsonMode === "boolean" &&
-    "content" in value
-  );
+  return value && typeof value === "object" && "content" in value;
 }
 
 /**
@@ -41,7 +34,5 @@ export function logInvalidData(requestId: string, value: any) {
   console.warn(`[Background] 收到非预期格式数据: ${requestId}`, {
     type: typeof value,
     value: value ? JSON.stringify(value).substring(0, 100) : "null",
-    hasIsJsonMode:
-      value && typeof value === "object" ? "isJsonMode" in value : false,
   });
 }
